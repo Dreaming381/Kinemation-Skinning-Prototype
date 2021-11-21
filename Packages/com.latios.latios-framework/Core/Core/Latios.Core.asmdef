@@ -1,0 +1,24 @@
+{
+    "name": "Latios.Core",
+    "references": [
+        "Unity.Entities",
+        "Unity.InputSystem",
+        "Unity.Jobs",
+        "Unity.Mathematics",
+        "Unity.Rendering.Hybrid",
+        "Unity.Transforms",
+        "Unity.Collections",
+        "Unity.Entities.Hybrid",
+        "Unity.Burst",
+        "Unity.Scenes"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

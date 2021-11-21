@@ -1,0 +1,148 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel BatchSkinningFullLds1024
+
+// We disable this warning because it assumes that we only get 16 VGPRs per thread with a threadgroup size of 1024.
+// Desktop and console support 32 per thread with good occupancy. This shader uses 26-28 on GCN.
+#pragma warning(disable: 4714)
+
+struct BoneWeight
+{
+    float weight;
+    uint packed;
+};
+
+struct Vertex
+{
+    float3 position;
+    float3 normal;
+    float3 tangent;
+};
+
+//uniform StructuredBuffer<BoneWeight> _boneWeights;
+uniform ByteAddressBuffer _boneWeights;
+uniform StructuredBuffer<Vertex> _srcVertices;
+uniform StructuredBuffer<float3x4> _skeletonMats;
+
+// Stride of uint4
+uniform ByteAddressBuffer _metaBuffer;
+
+uniform RWStructuredBuffer<Vertex> _dstVertices : register(u1);
+
+#define THREAD_GROUP_DIVISOR 1
+#define THREAD_GROUP_SIZE 1024/THREAD_GROUP_DIVISOR
+
+groupshared float3x4 gs_skeletonMats[682 / THREAD_GROUP_DIVISOR];
+
+uint _startOffset;
+
+[numthreads(THREAD_GROUP_SIZE, 1, 1)]
+void BatchSkinningFullLds1024(uint threadId : SV_GroupIndex, uint3 groupIds : SV_GroupID)
+{
+    uint groupId = groupIds.x;
+    uint4 skeletonMeta = _metaBuffer.Load4((groupId + _startOffset) * 16 );
+
+    uint skeletonIndex = skeletonMeta.x;
+    uint skeletonCount = skeletonMeta.y;
+
+    for (uint i = threadId; i < skeletonCount; i += THREAD_GROUP_SIZE)
+    {
+        gs_skeletonMats[i] = _skeletonMats[i + skeletonIndex];
+    }
+    
+    GroupMemoryBarrierWithGroupSync();
+
+    const uint meshStart = skeletonMeta.z;
+    const uint meshCount = skeletonMeta.w;
+
+    for (uint meshIndex = 0; meshIndex < meshCount; meshIndex++)
+    {
+        const uint4 meshMeta = _metaBuffer.Load4((meshStart + meshIndex) * 16);
+        const uint meshVertexStart = meshMeta.x;
+        const uint meshVertexCount = meshMeta.y;
+        const uint meshWeightsStart = meshMeta.z;
+        const uint meshDst = meshMeta.w;
+
+        uint currentWeightBatchStart = meshWeightsStart;
+        uint nextWeightBatchStart = meshWeightsStart;
+
+        uint vertexIndexBase = 0;
+        for (vertexIndexBase = 0; vertexIndexBase + 1023 < meshVertexCount; vertexIndexBase += 1024)
+        {           
+            nextWeightBatchStart += _boneWeights.Load(currentWeightBatchStart * 8 + 4);
+            currentWeightBatchStart++;
+            
+            for (uint inner = 0; inner < THREAD_GROUP_DIVISOR; inner++)
+            {
+                uint nextWeightIndex = currentWeightBatchStart + threadId + inner * THREAD_GROUP_SIZE;
+                bool isEnd = false;
+                float3x4 deform = 0;
+
+                do
+                {
+                    uint2 temp = _boneWeights.Load2(nextWeightIndex * 8);
+                    BoneWeight boneWeight = (BoneWeight)0;
+                    boneWeight.weight = asfloat(temp.x);
+                    boneWeight.packed = temp.y;
+                    float weight = boneWeight.weight;
+                    isEnd = weight < 0.;
+                    weight = abs(weight);
+                    uint boneIndex = boneWeight.packed & 0x8fff;
+                    nextWeightIndex += boneWeight.packed >> 22;
+                    nextWeightIndex++;
+
+                    float3x4 skinMatrix = gs_skeletonMats[boneIndex];
+                    //float3x4 skinMatrix = _skeletonMats[boneIndex + skeletonIndex];
+                    deform += skinMatrix * weight;
+                } while (!isEnd);
+
+                Vertex dstVertex = (Vertex)0;
+                Vertex vertex = _srcVertices[meshVertexStart + vertexIndexBase + threadId + inner * THREAD_GROUP_SIZE];
+                dstVertex.position = mul(deform, float4(vertex.position, 1));
+                dstVertex.normal = mul(deform, float4(vertex.normal, 0));
+                dstVertex.tangent = mul(deform, float4(vertex.tangent, 0));
+
+                _dstVertices[meshDst + vertexIndexBase + threadId + inner * THREAD_GROUP_SIZE] = dstVertex;
+            }
+
+            currentWeightBatchStart = nextWeightBatchStart;
+        }
+
+        currentWeightBatchStart++;
+        for (uint inner = 0; inner < THREAD_GROUP_DIVISOR; inner++)
+        {
+            if (vertexIndexBase + threadId < meshVertexCount)
+            {
+
+                uint nextWeightIndex = currentWeightBatchStart + threadId + inner * THREAD_GROUP_SIZE;
+                bool isEnd = false;
+                float3x4 deform = 0;
+
+                do
+                {
+                    uint2 temp = _boneWeights.Load2(nextWeightIndex * 8);
+                    BoneWeight boneWeight = (BoneWeight)0;
+                    boneWeight.weight = asfloat(temp.x);
+                    boneWeight.packed = temp.y;
+                    float weight = boneWeight.weight;
+                    isEnd = weight < 0.;
+                    weight = abs(weight);
+                    uint boneIndex = boneWeight.packed & 0x8fff;
+                    nextWeightIndex += boneWeight.packed >> 22;
+                    nextWeightIndex++;
+
+                    float3x4 skinMatrix = gs_skeletonMats[boneIndex];
+                    //float3x4 skinMatrix = _skeletonMats[boneIndex + skeletonIndex];
+                    deform += skinMatrix * weight;
+                } while (!isEnd);
+
+                Vertex dstVertex = (Vertex)0;
+                Vertex vertex = _srcVertices[meshVertexStart + vertexIndexBase + threadId + inner * THREAD_GROUP_SIZE];
+                dstVertex.position = mul(deform, float4(vertex.position, 1));
+                dstVertex.normal = mul(deform, float4(vertex.normal, 0));
+                dstVertex.tangent = mul(deform, float4(vertex.tangent, 0));
+
+                _dstVertices[meshDst + vertexIndexBase + threadId + inner * THREAD_GROUP_SIZE] = dstVertex;
+            }
+        }
+    }
+}
