@@ -9,7 +9,7 @@ using Unity.Transforms;
 
 namespace Latios.Kinemation.Systems
 {
-    public class HybridSkinMatrixSystem : SubSystem
+    public partial class HybridSkinMatrixSystem : SubSystem
     {
         public override bool ShouldUpdateSystem()
         {

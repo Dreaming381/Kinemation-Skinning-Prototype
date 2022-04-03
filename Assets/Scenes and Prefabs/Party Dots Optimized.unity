@@ -38,7 +38,7 @@ RenderSettings:
   m_ReflectionIntensity: 1
   m_CustomReflection: {fileID: 0}
   m_Sun: {fileID: 0}
-  m_IndirectSpecularColor: {r: 0.24647519, g: 0.28234503, b: 0.34570286, a: 1}
+  m_IndirectSpecularColor: {r: 0.18028352, g: 0.22571376, b: 0.30692244, a: 1}
   m_UseRadianceAmbientProbe: 0
 --- !u!157 &3
 LightmapSettings:
@@ -390,6 +390,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 1
   m_VolumeTrigger: {fileID: 0}
+  m_VolumeFrameworkUpdateModeOption: 2
   m_RenderPostProcessing: 0
   m_Antialiasing: 0
   m_AntialiasingQuality: 2
@@ -592,7 +593,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 1905823773}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d07c8110e0baaca4d96accd664adbb21, type: 3}
+  m_Script: {fileID: 11500000, guid: f6eb50aa2bc94dc438e752e635c4216a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   dancerGoPrefab: {fileID: 4031787441508651885, guid: c62bf5e47c61dee4a8dfa672773d67d5,
@@ -715,6 +716,11 @@ PrefabInstance:
     - target: {fileID: 1313477191131138363, guid: 3a5c8839cade7bf47afde1806d1fff08,
         type: 3}
       propertyPath: m_enableHybrid
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1313477191131138363, guid: 3a5c8839cade7bf47afde1806d1fff08,
+        type: 3}
+      propertyPath: m_enableBlending
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1313477191131138364, guid: 3a5c8839cade7bf47afde1806d1fff08,

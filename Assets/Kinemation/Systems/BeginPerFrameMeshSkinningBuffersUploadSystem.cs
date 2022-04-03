@@ -8,7 +8,7 @@ using Unity.Transforms;
 
 namespace Latios.Kinemation.Systems
 {
-    public class BeginPerFrameMeshSkinningBuffersUploadSystem : SubSystem
+    public partial class BeginPerFrameMeshSkinningBuffersUploadSystem : SubSystem
     {
         UnityEngine.ComputeShader m_verticesUploadShader;
         UnityEngine.ComputeShader m_bytesUploadShader;

@@ -8,23 +8,23 @@ namespace Latios.Myri
     internal struct ClipFrameLookup : IEquatable<ClipFrameLookup>
     {
         public BlobAssetReference<AudioClipBlob> clip;
-        public int                               spawnFrameOrOffsetIndex;
+        public int                               spawnFrameOrOffset;
 
         public unsafe bool Equals(ClipFrameLookup other)
         {
-            return ((ulong)clip.GetUnsafePtr()).Equals((ulong)other.clip.GetUnsafePtr()) && spawnFrameOrOffsetIndex == other.spawnFrameOrOffsetIndex;
+            return ((ulong)clip.GetUnsafePtr()).Equals((ulong)other.clip.GetUnsafePtr()) && spawnFrameOrOffset == other.spawnFrameOrOffset;
         }
 
         public unsafe override int GetHashCode()
         {
-            return new int2((int)((ulong)clip.GetUnsafePtr() >> 4), spawnFrameOrOffsetIndex).GetHashCode();
+            return new int2((int)((ulong)clip.GetUnsafePtr() >> 4), spawnFrameOrOffset).GetHashCode();
         }
     }
 
     internal struct Weights
     {
-        public FixedListFloat512 channelWeights;
-        public FixedListFloat128 itdWeights;
+        public FixedList512Bytes<float> channelWeights;
+        public FixedList128Bytes<float> itdWeights;
 
         public static Weights operator + (Weights a, Weights b)
         {

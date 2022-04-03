@@ -8,7 +8,7 @@ using Unity.Transforms;
 
 namespace Latios.Kinemation.Systems
 {
-    public class UpdateChunkComputeDeformMetadataSystem : SubSystem
+    public partial class UpdateChunkComputeDeformMetadataSystem : SubSystem
     {
         EntityQuery m_query;
 
@@ -28,7 +28,7 @@ namespace Latios.Kinemation.Systems
                 blobHandle        = blobHandle,
                 metaHandle        = metaHandle,
                 lastSystemVersion = lastSystemVersion
-            }.ScheduleParallel(m_query, 1, Dependency);
+            }.ScheduleParallel(m_query, Dependency);
         }
 
         [BurstCompile]

@@ -7,7 +7,7 @@ using Unity.Transforms;
 
 namespace Latios.Kinemation.Systems
 {
-    public class ClearPerFrameSkinningDataSystem : SubSystem
+    public partial class ClearPerFrameSkinningDataSystem : SubSystem
     {
         EntityQuery m_skeletonQuery;
         EntityQuery m_meshQuery;
@@ -29,13 +29,13 @@ namespace Latios.Kinemation.Systems
             {
                 handle            = GetComponentTypeHandle<PerFrameSkeletonBufferMetadata>(false),
                 lastSystemVersion = LastSystemVersion
-            }.ScheduleParallel(m_skeletonQuery, 1, Dependency);
+            }.ScheduleParallel(m_skeletonQuery, Dependency);
 
             Dependency = new ClearSkinningRenderCullingFlagsJob
             {
                 handle            = GetComponentTypeHandle<SkinningRenderCullingFlags>(false),
                 lastSystemVersion = LastSystemVersion
-            }.ScheduleParallel(m_meshQuery, 1, Dependency);
+            }.ScheduleParallel(m_meshQuery, Dependency);
 
             worldBlackboardEntity.GetCollectionComponent<BoneMatricesPerFrameBuffersManager>().boneMatricesBuffers.Clear();
         }

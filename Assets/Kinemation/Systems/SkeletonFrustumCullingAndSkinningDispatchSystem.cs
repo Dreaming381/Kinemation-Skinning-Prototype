@@ -12,7 +12,7 @@ using Unity.Transforms;
 // Todo: Split this system up once scheduling behavior is better understood
 namespace Latios.Kinemation.Systems
 {
-    public class SkeletonFrustumCullingAndSkinningDispatchSystem : SubSystem
+    public partial class SkeletonFrustumCullingAndSkinningDispatchSystem : SubSystem
     {
         EntityQuery m_exposedBonesQuery;
         EntityQuery m_skeletonQuery;
@@ -55,7 +55,7 @@ namespace Latios.Kinemation.Systems
                     planePackets               = planePackets,
                     maxBitIndex                = exposedCullingIndexManager.maxIndex,
                     perThreadBitArrays         = perThreadBitArrays
-                }.ScheduleParallel(m_exposedBonesQuery, 1, JobHandle.CombineDependencies(Dependency, cullingIndexJH));
+                }.ScheduleParallel(m_exposedBonesQuery, JobHandle.CombineDependencies(Dependency, cullingIndexJH));
 
                 Dependency = new CollapseBitsJob
                 {
@@ -94,7 +94,7 @@ namespace Latios.Kinemation.Systems
                 skeletonCountsByBufferByBatch     = skeletonCountsByBufferByBatch,
                 meshCullingFlagsCdfe              = GetComponentDataFromEntity<SkinningRenderCullingFlags>(false),
                 bufferId                          = boneMatsBufferList.boneMatricesBuffers.Count
-            }.ScheduleParallel(m_skeletonQuery, 1, Dependency);
+            }.ScheduleParallel(m_skeletonQuery, Dependency);
 
             var totalCounts            = new NativeReference<CountsElement>(Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
             var countsArrayPrefixSumJH = new PrefixSumCountsJob
@@ -172,7 +172,7 @@ namespace Latios.Kinemation.Systems
                 metaBuffer                    = skinningMetaArray,
                 skeletonCount                 = totalCounts.Value.skeletonCount,
                 bufferId                      = boneMatsBufferList.boneMatricesBuffers.Count
-            }.ScheduleParallel(m_skeletonQuery, 1, skeletonCountsByBufferByBatchPrefixSumJH);
+            }.ScheduleParallel(m_skeletonQuery, skeletonCountsByBufferByBatchPrefixSumJH);
 
             JobHandle.ScheduleBatchedJobs();
 

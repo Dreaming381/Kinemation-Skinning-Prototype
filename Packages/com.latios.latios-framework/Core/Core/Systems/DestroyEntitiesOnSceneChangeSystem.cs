@@ -9,14 +9,14 @@ namespace Latios.Systems
     [DisableAutoCreation]
     [AlwaysUpdateSystem]
     [UpdateInGroup(typeof(LatiosInitializationSystemGroup), OrderLast = true)]  //Doesn't matter, but good for visualization
-    public class DestroyEntitiesOnSceneChangeSystem : SubSystem
+    public partial class DestroyEntitiesOnSceneChangeSystem : SubSystem
     {
         private EntityQuery m_destroyQuery = default;
 
         protected override void OnCreate()
         {
-            m_destroyQuery =
-                Fluent.WithAll<LatiosSceneChangeDummyTag>().Without<WorldBlackboardTag>().Without<DontDestroyOnSceneChangeTag>().IncludePrefabs().IncludeDisabled().Build();
+            m_destroyQuery = Fluent.WithAll<LatiosSceneChangeDummyTag>().Without<WorldBlackboardTag>().Without<DontDestroyOnSceneChangeTag>().Without<RequestSceneLoaded>()
+                             .IncludePrefabs().IncludeDisabled().Build();
             SceneManager.activeSceneChanged += RealUpdateOnSceneChange;
         }
 

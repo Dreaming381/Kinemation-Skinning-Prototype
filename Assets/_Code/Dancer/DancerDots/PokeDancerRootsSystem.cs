@@ -8,7 +8,7 @@ using Unity.Transforms;
 
 namespace Dragons
 {
-    public class PokeDancerRootsSystem : SubSystem
+    public partial class PokeDancerRootsSystem : SubSystem
     {
         protected override void OnUpdate()
         {

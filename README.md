@@ -1,6 +1,7 @@
 ## Kinemation Skinning Prototype
 
-This is a Unity DOTS project built upon Puppet-Test for the purpose of
+This is a Unity DOTS project built upon
+[Puppet-Test](https://github.com/keijiro/PuppetTest) for the purpose of
 developing a new skinning solution known as Kinemation as part of the Latios
 Framework.
 
@@ -8,6 +9,8 @@ This prototype is **NOT** ready for production.
 
 The procedural animation is still done with 10 reference game objects, but these
 are used to drive 10k entity dancers.
+
+The latest master commit uses DOTS 0.50 and Unity 2020.3.30f1.
 
 ## How to Test
 

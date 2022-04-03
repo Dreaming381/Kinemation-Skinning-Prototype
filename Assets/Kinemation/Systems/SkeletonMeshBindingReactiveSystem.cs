@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using Latios.Unsafe;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -12,7 +13,7 @@ using Unity.Transforms;
 
 namespace Latios.Kinemation.Systems
 {
-    public class SkeletonMeshBindingReactiveSystem : SubSystem
+    public partial class SkeletonMeshBindingReactiveSystem : SubSystem
     {
         EntityQuery m_newMeshesQuery;
         EntityQuery m_allMeshesQuery;
@@ -92,7 +93,7 @@ namespace Latios.Kinemation.Systems
                     blobRefHandle     = blobRefHandle,
                     bindingsBlockList = bindingsBlockList,
                     meshBlockList     = meshesBlockList
-                }.ScheduleParallel(m_newMeshesQuery, 1, Dependency);
+                }.ScheduleParallel(m_newMeshesQuery, Dependency);
             }
             if (haveDeadMeshes)
             {
@@ -102,7 +103,7 @@ namespace Latios.Kinemation.Systems
                     depsHandle        = dependentHandle,  // Ok that we declare write here since we will delete these anyways
                     bindingsBlockList = bindingsBlockList,
                     meshBlockList     = meshesBlockList
-                }.ScheduleParallel(m_deadMeshesQuery, 1, Dependency);
+                }.ScheduleParallel(m_deadMeshesQuery, Dependency);
             }
             Dependency = new FindChangedBindingsJob
             {
@@ -113,7 +114,7 @@ namespace Latios.Kinemation.Systems
                 bindingsBlockList = bindingsBlockList,
                 meshBlockList     = meshesBlockList,
                 lastSystemVersion = lastSystemVersion
-            }.ScheduleParallel(m_allMeshesQuery, 1, Dependency);
+            }.ScheduleParallel(m_allMeshesQuery, Dependency);
 
             JobHandle                                         cullingJH       = default;
             bool                                              needsCullingJob = false;
@@ -132,12 +133,12 @@ namespace Latios.Kinemation.Systems
                     {
                         entityHandle   = entityHandle,
                         newOrDeadArray = newSkeletonsArray
-                    }.ScheduleParallel(m_newExposedSkeletonsQuery, 1, Dependency);
+                    }.ScheduleParallel(m_newExposedSkeletonsQuery, Dependency);
                     Dependency = new FindNewOrDeadDeadExposedSkeletonsJob
                     {
                         entityHandle   = entityHandle,
                         newOrDeadArray = deadSkeletonsArray
-                    }.ScheduleParallel(m_deadExposedSkeletonsQuery, 1, Dependency);
+                    }.ScheduleParallel(m_deadExposedSkeletonsQuery, Dependency);
 
                     cullingOps = new NativeArray<ExposedSkeletonCullingIndexOperation>(newExposedSkeletonsCount, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
 
@@ -222,7 +223,7 @@ namespace Latios.Kinemation.Systems
                     blobRefHandle       = blobRefHandle,
                     dependentHandle     = dependentHandle,
                     globalSystemVersion = globalSystemVersion
-                }.ScheduleParallel(m_allMeshesQuery, 1, Dependency);
+                }.ScheduleParallel(m_allMeshesQuery, Dependency);
             }
 
             if (needsCullingJob)
@@ -931,7 +932,7 @@ namespace Latios.Kinemation.Systems
             {
                 if (skeletonCount != meshCount)
                 {
-                    FixedString128 str = blob.Value.name;
+                    FixedString128Bytes str = blob.Value.name;
                     UnityEngine.Debug.LogWarning(
                         $"Entity {meshEntity} with skinnedMesh {str} is being bound to skeleton root {skeletonEntity} which has a different number of bones (skeleton: {skeletonCount}, mesh: {meshCount}). This may lead to incorrect behavior.");
                 }

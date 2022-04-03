@@ -10,7 +10,7 @@ using UnityEngine.Jobs;
 
 namespace Dragons
 {
-    public class SampleDancersOptimizedSystem : SubSystem
+    public partial class SampleDancersOptimizedSystem : SubSystem
     {
         protected override void OnUpdate()
         {
@@ -105,7 +105,7 @@ namespace Dragons
             }
             else
             {
-                Entities.ForEach((ref Translation trans, ref Rotation rot, ref DynamicBuffer<QuaternionCacheElement> cacheBuffer,
+                Entities.ForEach((ref Translation trans, ref Rotation rot,
                                   ref DynamicBuffer<OptimizedBoneToRoot> boneToRoots,
                                   in DancerDots dd, in OptimizedBindSkeletonBlobReference blobRef) =>
                 {
@@ -133,7 +133,7 @@ namespace Dragons
                             boneToRoots[i] = new OptimizedBoneToRoot { boneToRoot = float4x4.identity };
                         }
                     }
-                }).WithReadOnly(translations).WithReadOnly(rotations).WithName("CopyPoses").ScheduleParallel();
+                }).WithReadOnly(translations).WithReadOnly(rotations).WithName("CopyPoses2").ScheduleParallel();
             }
 
             Dependency = translations.Dispose(Dependency);
@@ -154,7 +154,7 @@ namespace Dragons
         }
     }
 
-    public class TempFixExportedTransformsSystem : SubSystem
+    public partial class TempFixExportedTransformsSystem : SubSystem
     {
         protected override void OnUpdate()
         {

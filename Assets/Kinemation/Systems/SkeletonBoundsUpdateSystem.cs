@@ -9,7 +9,7 @@ using Unity.Transforms;
 
 namespace Latios.Kinemation.Systems
 {
-    public class SkeletonBoundsUpdateSystem : SubSystem
+    public partial class SkeletonBoundsUpdateSystem : SubSystem
     {
         EntityQuery m_exposedBonesQuery;
         EntityQuery m_optimizedSkeletonsQuery;
@@ -37,7 +37,7 @@ namespace Latios.Kinemation.Systems
                 boneWorldBoundsHandle         = GetComponentTypeHandle<BoneWorldBounds>(false),
                 chunkBoneWorldBoundsHandle    = GetComponentTypeHandle<ChunkBoneWorldBounds>(false),
                 lastSystemVersion             = lastSystemVersion
-            }.ScheduleParallel(m_exposedBonesQuery, 1, Dependency);
+            }.ScheduleParallel(m_exposedBonesQuery, Dependency);
 
             // Todo: Increase batches per chunk?
             Dependency = new OptimizedBoneBoundsJob
@@ -49,7 +49,7 @@ namespace Latios.Kinemation.Systems
                 skeletonWorldBoundsHandle         = GetComponentTypeHandle<SkeletonWorldBounds>(false),
                 chunkSkeletonWorldBoundsHandle    = GetComponentTypeHandle<ChunkSkeletonWorldBounds>(false),
                 lastSystemVersion                 = lastSystemVersion
-            }.ScheduleParallel(m_optimizedSkeletonsQuery, 1, Dependency);
+            }.ScheduleParallel(m_optimizedSkeletonsQuery, Dependency);
         }
 
         [BurstCompile]

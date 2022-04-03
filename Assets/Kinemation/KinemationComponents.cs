@@ -42,7 +42,7 @@ namespace Latios.Kinemation
         public BlobArray<BoneWeightLinkedList> boneWeights;
         public BlobArray<uint>                 boneWeightBatchStarts;
         public Hash128                         authoredHash;
-        public FixedString128                  name;
+        public FixedString128Bytes                  name;
 
         public override int GetHashCode() => authoredHash.GetHashCode();
     }

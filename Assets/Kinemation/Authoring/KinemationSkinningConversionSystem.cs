@@ -482,7 +482,7 @@ namespace Latios.Kinemation.Authoring
             var bindPoseStartIndicesPerMesh = new NativeArray<int>(count, Allocator.TempJob);
             var bindPosesPerMesh            = new NativeArray<short>(count, Allocator.TempJob);
             var bindPoses                   = new NativeList<float4x4>(Allocator.TempJob);
-            var names                       = new NativeArray<FixedString128>(count, Allocator.TempJob);
+            var names                       = new NativeArray<FixedString128Bytes>(count, Allocator.TempJob);
             int startCounter                = 0;
             foreach(var mesh in m_meshBlobs.Keys)
             {
@@ -701,11 +701,11 @@ namespace Latios.Kinemation.Authoring
         [BurstCompile]
         struct ComputeMeshSkinningHashes : IJobFor
         {
-            [ReadOnly] public Mesh.MeshDataArray          meshes;
-            [ReadOnly] public NativeArray<short>          bindPosesPerMesh;
-            [ReadOnly] public NativeArray<int>            bindPoseStartIndicesPerMesh;
-            [ReadOnly] public NativeArray<float4x4>       bindPoses;
-            [ReadOnly] public NativeArray<FixedString128> meshNames;
+            [ReadOnly] public Mesh.MeshDataArray               meshes;
+            [ReadOnly] public NativeArray<short>               bindPosesPerMesh;
+            [ReadOnly] public NativeArray<int>                 bindPoseStartIndicesPerMesh;
+            [ReadOnly] public NativeArray<float4x4>            bindPoses;
+            [ReadOnly] public NativeArray<FixedString128Bytes> meshNames;
 
             public NativeArray<MeshSkinningComputationData> dataArray;
 
@@ -733,15 +733,15 @@ namespace Latios.Kinemation.Authoring
         [BurstCompile]
         struct ComputeMeshSkinningBlobs : IJobFor
         {
-            [ReadOnly] public Mesh.MeshDataArray          meshes;
-            [ReadOnly] public NativeArray<int>            verticesStartsPerMesh;  //IJobFor index
-            [ReadOnly] public NativeArray<int>            boneWeightStartsPerMesh;  //IJobFor index
-            [ReadOnly] public NativeArray<byte>           boneWeightCountsPerVertex;
-            [ReadOnly] public NativeArray<BoneWeight1>    boneWeights;
-            [ReadOnly] public NativeArray<short>          bindPosesPerMesh;  //dataArray index
-            [ReadOnly] public NativeArray<int>            bindPoseStartIndicesPerMesh;  //dataArray index
-            [ReadOnly] public NativeArray<float4x4>       bindPoses;
-            [ReadOnly] public NativeArray<FixedString128> meshNames;  //dataArray index
+            [ReadOnly] public Mesh.MeshDataArray               meshes;
+            [ReadOnly] public NativeArray<int>                 verticesStartsPerMesh;  //IJobFor index
+            [ReadOnly] public NativeArray<int>                 boneWeightStartsPerMesh;  //IJobFor index
+            [ReadOnly] public NativeArray<byte>                boneWeightCountsPerVertex;
+            [ReadOnly] public NativeArray<BoneWeight1>         boneWeights;
+            [ReadOnly] public NativeArray<short>               bindPosesPerMesh;  //dataArray index
+            [ReadOnly] public NativeArray<int>                 bindPoseStartIndicesPerMesh;  //dataArray index
+            [ReadOnly] public NativeArray<float4x4>            bindPoses;
+            [ReadOnly] public NativeArray<FixedString128Bytes> meshNames;  //dataArray index
 
             [NativeDisableContainerSafetyRestriction] NativeList<Vector3> vector3Cache;
             [NativeDisableContainerSafetyRestriction] NativeList<Vector4> vector4Cache;
@@ -869,7 +869,7 @@ namespace Latios.Kinemation.Authoring
         }
     }
 
-    class LeechSystem : SystemBase
+    partial class LeechSystem : SystemBase
     {
         protected override void OnCreate()
         {

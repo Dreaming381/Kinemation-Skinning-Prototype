@@ -1,3 +1,4 @@
+using Latios.Unsafe;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -8,10 +9,11 @@ using Unity.Transforms;
 
 namespace Latios.UnityReplacements
 {
+    [DisableAutoCreation]
     [UpdateInGroup(typeof(TransformSystemGroup))]
-    [UpdateAfter(typeof(EndFrameLocalToParentSystem))]
-    [UpdateBefore(typeof(EndFrameWorldToLocalSystem))]
-    public unsafe class LatiosLocalToParentSystem3 : SubSystem
+    [UpdateAfter(typeof(LocalToParentSystem))]
+    [UpdateBefore(typeof(WorldToLocalSystem))]
+    public unsafe partial class LatiosLocalToParentSystem3 : SubSystem
     {
         EntityQuery     m_childWithParentDependencyQuery;
         EntityQueryMask m_childWithParentDependencyMask;
@@ -73,20 +75,20 @@ namespace Latios.UnityReplacements
                 depthCdfe         = depthCdfe,
                 depthHandle       = depthWriteHandle,
                 lastSystemVersion = lastSystemVersion
-            }.ScheduleParallel(m_childQuery, 1, Dependency);
+            }.ScheduleParallel(m_childQuery, Dependency);
 
             Dependency = new PatchChunkDepthMasksJob
             {
                 depthHandle          = depthReadHandle,
                 chunkDepthMaskHandle = chunkDepthMaskWriteHandle,
                 lastSystemVersion    = lastSystemVersion
-            }.ScheduleParallel(m_childQuery, 1, Dependency);
+            }.ScheduleParallel(m_childQuery, Dependency);
 
             Dependency = new ScatterChunksToDepthsJob
             {
                 chunkDepthMaskHandle = chunkDepthMaskReadHandle,
                 blockLists           = blockLists
-            }.ScheduleParallel(m_childQuery, 1, Dependency);
+            }.ScheduleParallel(m_childQuery, Dependency);
 
             for (int i = 0; i < kMaxDepthIterations; i++)
             {
@@ -467,137 +469,6 @@ namespace Latios.UnityReplacements
                     }
                 }
             }
-        }
-    }
-
-    [UpdateInGroup(typeof(TransformSystemGroup))]
-    [UpdateAfter(typeof(EndFrameLocalToParentSystem))]
-    [UpdateBefore(typeof(EndFrameWorldToLocalSystem))]
-    //[UpdateBefore(typeof(EndFrameLocalToParentSystem))]
-    public class LocalToParentSystem2 : JobComponentSystem
-    {
-        private EntityQuery     m_RootsQuery;
-        private EntityQueryMask m_LocalToWorldWriteGroupMask;
-        private EntityQuery     m_ChildrenQuery;
-
-        // LocalToWorld = Parent.LocalToWorld * LocalToParent
-        [BurstCompile]
-        struct UpdateHierarchy : IJobEntityBatch
-        {
-            [ReadOnly] public ComponentTypeHandle<LocalToWorld>      LocalToWorldTypeHandle;
-            [ReadOnly] public BufferTypeHandle<Child>                ChildTypeHandle;
-            [ReadOnly] public BufferFromEntity<Child>                ChildFromEntity;
-            [ReadOnly] public ComponentDataFromEntity<LocalToParent> LocalToParentFromEntity;
-            [ReadOnly] public EntityQueryMask                        LocalToWorldWriteGroupMask;
-            public uint                                              LastSystemVersion;
-
-            [NativeDisableContainerSafetyRestriction]
-            public ComponentDataFromEntity<LocalToWorld> LocalToWorldFromEntity;
-
-            void ChildLocalToWorld(ref float4x4 parentLocalToWorld, Entity entity, bool updateChildrenTransform, Entity parent, ref bool parentLtwValid)
-            {
-                updateChildrenTransform = updateChildrenTransform || LocalToParentFromEntity.DidChange(entity, LastSystemVersion);
-
-                float4x4 localToWorldMatrix = default;
-                bool     ltwIsValid         = false;
-
-                bool isDependent = LocalToWorldWriteGroupMask.Matches(entity);
-                if (updateChildrenTransform && isDependent)
-                {
-                    if (!parentLtwValid)
-                    {
-                        parentLocalToWorld = LocalToWorldFromEntity[parent].Value;
-                        parentLtwValid     = true;
-                    }
-                    var localToParent              = LocalToParentFromEntity[entity];
-                    localToWorldMatrix             = math.mul(parentLocalToWorld, localToParent.Value);
-                    ltwIsValid                     = true;
-                    LocalToWorldFromEntity[entity] = new LocalToWorld { Value = localToWorldMatrix };
-                }
-                else if (!isDependent)  //This entity has a component with the WriteGroup(LocalToWorld)
-                {
-                    updateChildrenTransform = updateChildrenTransform || LocalToWorldFromEntity.DidChange(entity, LastSystemVersion);
-                }
-                if (ChildFromEntity.HasComponent(entity))
-                {
-                    var children = ChildFromEntity[entity];
-                    for (int i = 0; i < children.Length; i++)
-                    {
-                        ChildLocalToWorld(ref localToWorldMatrix, children[i].Value, updateChildrenTransform, entity, ref ltwIsValid);
-                    }
-                }
-            }
-
-            public void Execute(ArchetypeChunk batchInChunk, int batchIndex)
-            {
-                bool updateChildrenTransform =
-                    batchInChunk.DidChange<LocalToWorld>(LocalToWorldTypeHandle, LastSystemVersion) ||
-                    batchInChunk.DidChange<Child>(ChildTypeHandle, LastSystemVersion);
-
-                var  chunkLocalToWorld = batchInChunk.GetNativeArray(LocalToWorldTypeHandle);
-                var  chunkChildren     = batchInChunk.GetBufferAccessor(ChildTypeHandle);
-                bool ltwIsValid        = true;
-                for (int i = 0; i < batchInChunk.Count; i++)
-                {
-                    var localToWorldMatrix = chunkLocalToWorld[i].Value;
-                    var children           = chunkChildren[i];
-                    for (int j = 0; j < children.Length; j++)
-                    {
-                        ChildLocalToWorld(ref localToWorldMatrix, children[j].Value, updateChildrenTransform, Entity.Null, ref ltwIsValid);
-                    }
-                }
-            }
-        }
-
-        protected override void OnCreate()
-        {
-            m_RootsQuery = GetEntityQuery(new EntityQueryDesc
-            {
-                All = new ComponentType[]
-                {
-                    ComponentType.ReadOnly<LocalToWorld>(),
-                    ComponentType.ReadOnly<Child>()
-                },
-                None = new ComponentType[]
-                {
-                    typeof(Parent)
-                },
-                Options = EntityQueryOptions.FilterWriteGroup
-            });
-
-            m_ChildrenQuery = GetEntityQuery(new EntityQueryDesc
-            {
-                All = new ComponentType[]
-                {
-                    typeof(LocalToWorld),
-                    ComponentType.ReadOnly<LocalToParent>(),
-                    ComponentType.ReadOnly<Parent>()
-                },
-                Options = EntityQueryOptions.FilterWriteGroup
-            });
-            m_LocalToWorldWriteGroupMask = EntityManager.GetEntityQueryMask(m_ChildrenQuery);
-        }
-
-        protected override JobHandle OnUpdate(JobHandle inputDeps)
-        {
-            var localToWorldType        = GetComponentTypeHandle<LocalToWorld>(true);
-            var childType               = GetBufferTypeHandle<Child>(true);
-            var childFromEntity         = GetBufferFromEntity<Child>(true);
-            var localToParentFromEntity = GetComponentDataFromEntity<LocalToParent>(true);
-            var localToWorldFromEntity  = GetComponentDataFromEntity<LocalToWorld>();
-
-            var updateHierarchyJob = new UpdateHierarchy
-            {
-                LocalToWorldTypeHandle     = localToWorldType,
-                ChildTypeHandle            = childType,
-                ChildFromEntity            = childFromEntity,
-                LocalToParentFromEntity    = localToParentFromEntity,
-                LocalToWorldFromEntity     = localToWorldFromEntity,
-                LocalToWorldWriteGroupMask = m_LocalToWorldWriteGroupMask,
-                LastSystemVersion          = LastSystemVersion
-            };
-            inputDeps = updateHierarchyJob.ScheduleParallel(m_RootsQuery, 1, inputDeps);
-            return inputDeps;
         }
     }
 }

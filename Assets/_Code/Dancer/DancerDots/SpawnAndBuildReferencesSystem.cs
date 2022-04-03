@@ -13,7 +13,7 @@ using UnityEngine.Jobs;
 
 namespace Dragons
 {
-    public class SpawnAndBuildReferencesSystem : SubSystem
+    public partial class SpawnAndBuildReferencesSystem : SubSystem
     {
         struct ColorInitializedTag : IComponentData { }
         struct DancerInitializedTag : IComponentData { }

@@ -14,7 +14,7 @@ using UnityEngine.Rendering;
 // But otherwise, most modifications are for shoehorning the skinning flags.
 namespace Latios.Kinemation.Systems
 {
-    public class CullUnskinnedRenderersAndUpdateVisibilitiesSystem : SubSystem
+    public partial class CullUnskinnedRenderersAndUpdateVisibilitiesSystem : SubSystem
     {
         EntityQuery m_query;
 
@@ -51,7 +51,7 @@ namespace Latios.Kinemation.Systems
 #if UNITY_EDITOR
                 Stats = brgCullingContext.cullingStats,
 #endif
-            }.ScheduleParallel(m_query, 1, Dependency);
+            }.ScheduleParallel(m_query, Dependency);
         }
 
         [BurstCompile]

@@ -26,7 +26,7 @@ using UnityEngine.Rendering;
 // These are split for job scheduling reasons, but share nearly identical logic otherwise.
 namespace Latios.Kinemation.Systems
 {
-    public unsafe class UpdateSkinnedLODsSystem : SubSystem
+    public unsafe partial class UpdateSkinnedLODsSystem : SubSystem
     {
         LODGroupExtensions.LODParams m_PrevLODParams = default;
         float3                       m_PrevCameraPos;
@@ -88,7 +88,7 @@ namespace Latios.Kinemation.Systems
 #endif
                 };
 
-                Dependency = selectLodEnabledJob.ScheduleParallel(m_query, 1, Dependency);
+                Dependency = selectLodEnabledJob.ScheduleParallel(m_query, Dependency);
 
                 m_PrevLODParams        = lodParams;
                 m_PrevLodDistanceScale = lodParams.distanceScale;
@@ -285,7 +285,7 @@ namespace Latios.Kinemation.Systems
         }
     }
 
-    public unsafe class UpdateUnskinnedLODsSystem : SubSystem
+    public unsafe partial class UpdateUnskinnedLODsSystem : SubSystem
     {
         LODGroupExtensions.LODParams m_PrevLODParams = default;
         float3                       m_PrevCameraPos;
@@ -346,7 +346,7 @@ namespace Latios.Kinemation.Systems
 #endif
                 };
 
-                Dependency = selectLodEnabledJob.ScheduleParallel(m_query, 1, Dependency);
+                Dependency = selectLodEnabledJob.ScheduleParallel(m_query, Dependency);
 
                 m_PrevLODParams        = lodParams;
                 m_PrevLodDistanceScale = lodParams.distanceScale;

@@ -8,7 +8,7 @@ using Unity.Transforms;
 
 namespace Dragons
 {
-    public class CorrectDancerFeetSystem : SubSystem
+    public partial class CorrectDancerFeetSystem : SubSystem
     {
         protected override void OnUpdate()
         {

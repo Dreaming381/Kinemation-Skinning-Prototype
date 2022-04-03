@@ -7,7 +7,7 @@ using Unity.Transforms;
 
 namespace Latios.Kinemation.Systems
 {
-    public class ClearPerCameraFlagsSystem : SubSystem
+    public partial class ClearPerCameraFlagsSystem : SubSystem
     {
         EntityQuery m_query;
 
@@ -24,7 +24,7 @@ namespace Latios.Kinemation.Systems
             {
                 handle            = GetComponentTypeHandle<SkinningRenderCullingFlags>(false),
                 lastSystemVersion = LastSystemVersion
-            }.ScheduleParallel(m_query, 1, Dependency);
+            }.ScheduleParallel(m_query, Dependency);
         }
 
         [BurstCompile]

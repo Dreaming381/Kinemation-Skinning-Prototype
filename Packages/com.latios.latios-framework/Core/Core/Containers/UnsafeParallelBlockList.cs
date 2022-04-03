@@ -6,7 +6,7 @@ using Unity.Jobs;
 using Unity.Jobs.LowLevel.Unsafe;
 using Unity.Mathematics;
 
-namespace Latios
+namespace Latios.Unsafe
 {
     public unsafe struct UnsafeParallelBlockList : INativeDisposable
     {
@@ -27,8 +27,10 @@ namespace Latios
             m_perThreadBlockLists = (PerThreadBlockList*)UnsafeUtility.Malloc(64 * JobsUtility.MaxJobThreadCount, 64, allocator);
             for (int i = 0; i < JobsUtility.MaxJobThreadCount; i++)
             {
-                m_perThreadBlockLists[i] = default;
+                m_perThreadBlockLists[i].lastByteAddressInBlock = null;
+                m_perThreadBlockLists[i].nextWriteAddress       = null;
                 m_perThreadBlockLists[i].nextWriteAddress++;
+                m_perThreadBlockLists[i].elementCount = 0;
             }
         }
 
@@ -40,8 +42,7 @@ namespace Latios
             {
                 if (blockList->elementCount == 0)
                 {
-                    blockList->blocks = new UnsafeList(m_allocator);
-                    blockList->blocks.SetCapacity<BlockPtr>(10);
+                    blockList->blocks = new UnsafeList<BlockPtr>(8, m_allocator);
                 }
                 BlockPtr newBlockPtr = new BlockPtr
                 {
@@ -64,8 +65,7 @@ namespace Latios
             {
                 if (blockList->elementCount == 0)
                 {
-                    blockList->blocks = new UnsafeList(m_allocator);
-                    blockList->blocks.SetCapacity<BlockPtr>(10);
+                    blockList->blocks = new UnsafeList<BlockPtr>(8, m_allocator);
                 }
                 BlockPtr newBlockPtr = new BlockPtr
                 {
@@ -109,7 +109,7 @@ namespace Latios
                     int src = 0;
                     for (int blockId = 0; blockId < blockList->blocks.Length - 1; blockId++)
                     {
-                        var address = ((BlockPtr*)blockList->blocks.Ptr)[blockId].ptr;
+                        var address = blockList->blocks[blockId].ptr;
                         for (int i = 0; i < m_elementsPerBlock; i++)
                         {
                             ptrs[dst] = new ElementPtr { ptr  = address };
@@ -119,7 +119,7 @@ namespace Latios
                         }
                     }
                     {
-                        var address = ((BlockPtr*)blockList->blocks.Ptr)[blockList->blocks.Length - 1].ptr;
+                        var address = blockList->blocks[blockList->blocks.Length - 1].ptr;
                         for (int i = src; i < blockList->elementCount; i++)
                         {
                             ptrs[dst] = new ElementPtr { ptr  = address };
@@ -131,6 +131,7 @@ namespace Latios
             }
         }
 
+        [Unity.Burst.CompilerServices.IgnoreWarning(1371)]
         public void GetElementValues<T>(NativeArray<T> values) where T : struct
         {
             int dst = 0;
@@ -144,7 +145,7 @@ namespace Latios
                     CheckBlockCountMatchesCount(blockList->elementCount, blockList->blocks.Length);
                     for (int blockId = 0; blockId < blockList->blocks.Length - 1; blockId++)
                     {
-                        var address = ((BlockPtr*)blockList->blocks.Ptr)[blockId].ptr;
+                        var address = blockList->blocks[blockId].ptr;
                         for (int i = 0; i < m_elementsPerBlock; i++)
                         {
                             UnsafeUtility.CopyPtrToStructure(address, out T temp);
@@ -155,7 +156,7 @@ namespace Latios
                         }
                     }
                     {
-                        var address = ((BlockPtr*)blockList->blocks.Ptr)[blockList->blocks.Length - 1].ptr;
+                        var address = blockList->blocks[blockList->blocks.Length - 1].ptr;
                         for (int i = src; i < blockList->elementCount; i++)
                         {
                             UnsafeUtility.CopyPtrToStructure(address, out T temp);
@@ -205,8 +206,7 @@ namespace Latios
                 {
                     for (int j = 0; j < m_perThreadBlockLists[i].blocks.Length; j++)
                     {
-                        BlockPtr* blockPtrArray = (BlockPtr*)m_perThreadBlockLists[i].blocks.Ptr;
-                        UnsafeUtility.Free(blockPtrArray[j].ptr, m_allocator);
+                        UnsafeUtility.Free(m_perThreadBlockLists[i].blocks[j].ptr, m_allocator);
                     }
                     m_perThreadBlockLists[i].blocks.Dispose();
                 }
@@ -222,10 +222,10 @@ namespace Latios
         [StructLayout(LayoutKind.Sequential, Size = 64)]
         private struct PerThreadBlockList
         {
-            public UnsafeList blocks;
-            public byte*      nextWriteAddress;
-            public byte*      lastByteAddressInBlock;
-            public int        elementCount;
+            public UnsafeList<BlockPtr> blocks;
+            public byte*                nextWriteAddress;
+            public byte*                lastByteAddressInBlock;
+            public int                  elementCount;
         }
 
         public Enumerator GetEnumerator(int nativeThreadIndex)
@@ -263,7 +263,7 @@ namespace Latios
                         return false;
 
                     int elementsInBlock      = math.min(m_elementsPerBlock, m_perThreadBlockList->elementCount - m_blockIndex * m_elementsPerBlock);
-                    var blocks               = (BlockPtr*)m_perThreadBlockList->blocks.Ptr;
+                    var blocks               = m_perThreadBlockList->blocks.Ptr;
                     m_lastByteAddressInBlock = blocks[m_blockIndex].ptr + elementsInBlock * m_elementSize - 1;
                     m_readAddress            = blocks[m_blockIndex].ptr;
                 }
@@ -279,25 +279,25 @@ namespace Latios
     }
 
     // Schedule for 128 iterations
-    [BurstCompile]
-    struct ExampleReadJob : IJobFor
-    {
-        [NativeDisableUnsafePtrRestriction] public UnsafeParallelBlockList blockList;
-
-        public void Execute(int index)
-        {
-            var enumerator = blockList.GetEnumerator(index);
-
-            while (enumerator.MoveNext())
-            {
-                int number = enumerator.GetCurrent<int>();
-
-                if (number == 381)
-                    UnityEngine.Debug.Log("You found me!");
-                else if (number == 380)
-                    UnityEngine.Debug.Log("Where?");
-            }
-        }
-    }
+    //[BurstCompile]
+    //struct ExampleReadJob : IJobFor
+    //{
+    //    [NativeDisableUnsafePtrRestriction] public UnsafeParallelBlockList blockList;
+    //
+    //    public void Execute(int index)
+    //    {
+    //        var enumerator = blockList.GetEnumerator(index);
+    //
+    //        while (enumerator.MoveNext())
+    //        {
+    //            int number = enumerator.GetCurrent<int>();
+    //
+    //            if (number == 381)
+    //                UnityEngine.Debug.Log("You found me!");
+    //            else if (number == 380)
+    //                UnityEngine.Debug.Log("Where?");
+    //        }
+    //    }
+    //}
 }
 

@@ -10,7 +10,7 @@ using Unity.Transforms;
 // This system just calculates the required size and distributes instance shader properties.
 namespace Latios.Kinemation.Systems
 {
-    public class AllocateDeformedMeshesSystem : SubSystem
+    public partial class AllocateDeformedMeshesSystem : SubSystem
     {
         EntityQuery m_metaQuery;
         EntityQuery m_query;
@@ -48,7 +48,7 @@ namespace Latios.Kinemation.Systems
                 metaHandle    = metaHandle,
                 prefixSums    = context.renderedNotRenderedCounts,
                 indicesHandle = indicesHandle
-            }.ScheduleParallel(m_query, 1, Dependency);
+            }.ScheduleParallel(m_query, Dependency);
         }
 
         // Schedule single

@@ -34,10 +34,10 @@ namespace Dragons
             simulationSystemGroup.SortSystems();
             presentationSystemGroup.SortSystems();
 
-            world.GetExistingSystem<Unity.Transforms.EndFrameLocalToParentSystem>().Enabled  = false;
-            world.GetExistingSystem<Latios.UnityReplacements.LocalToParentSystem2>().Enabled = false;
+            //world.GetExistingSystem<Unity.Transforms.LocalToParentSystem>().Enabled  = false;
+            //world.GetExistingSystem<Latios.UnityReplacements.LocalToParentSystem2>().Enabled = false;
 
-            ScriptBehaviourUpdateOrder.AddWorldToCurrentPlayerLoop(world);
+            ScriptBehaviourUpdateOrder.AppendWorldToCurrentPlayerLoop(world);
             return true;
         }
     }

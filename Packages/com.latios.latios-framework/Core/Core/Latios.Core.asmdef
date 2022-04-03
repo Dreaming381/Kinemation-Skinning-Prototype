@@ -1,8 +1,8 @@
 {
     "name": "Latios.Core",
+    "rootNamespace": "Latios",
     "references": [
         "Unity.Entities",
-        "Unity.InputSystem",
         "Unity.Jobs",
         "Unity.Mathematics",
         "Unity.Rendering.Hybrid",

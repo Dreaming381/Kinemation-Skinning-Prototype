@@ -10,7 +10,7 @@ using UnityEngine.Jobs;
 
 namespace Dragons
 {
-    public class SampleDancersExposedSystem : SubSystem
+    public partial class SampleDancersExposedSystem : SubSystem
     {
         protected override void OnUpdate()
         {
