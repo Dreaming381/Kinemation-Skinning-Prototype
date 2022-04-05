@@ -28,9 +28,6 @@ namespace Latios.Kinemation.Systems
 
         protected override void OnUpdate()
         {
-            if (HybridSkinningToggle.EnableHybrid)
-                return;
-
             World.GetExistingSystem<Unity.Rendering.DeformationsInPresentation>().Enabled = false;
 
             var context       = worldBlackboardEntity.GetCollectionComponent<LastFrameRenderedNotRenderedVertices>();

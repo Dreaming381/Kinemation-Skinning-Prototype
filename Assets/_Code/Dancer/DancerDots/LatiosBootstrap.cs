@@ -65,7 +65,6 @@ namespace Dragons
     {
         protected override void CreateSystems()
         {
-            GetOrCreateAndAddSystem<Latios.Kinemation.Systems.HybridSkinMatrixSystem>();
             GetOrCreateAndAddSystem<Latios.Kinemation.Systems.SkeletonBoundsUpdateSystem>();
             GetOrCreateAndAddSystem<Latios.Kinemation.Systems.UpdateChunkComputeDeformMetadataSystem>();
             GetOrCreateAndAddSystem<Latios.Kinemation.Systems.AllocateDeformedMeshesSystem>();

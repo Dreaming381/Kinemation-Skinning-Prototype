@@ -61,9 +61,6 @@ namespace Latios.Kinemation.Authoring
 
         protected override void OnUpdate()
         {
-            if (HybridSkinningToggle.EnableHybrid)
-                return;
-
             World.GetExistingSystem<SkinnedMeshRendererConversion>().Enabled = false;
 
             //Temporary workaround
@@ -124,12 +121,13 @@ namespace Latios.Kinemation.Authoring
                 }
                 else
                 {
-                    m_optimizedSkeletonRenderers.Add(smr);
+                    Debug.LogWarning("Optimized skeleton hierarchies are temporarily disabled. They are too fragile atm.");
+                    //m_optimizedSkeletonRenderers.Add(smr);
                 }
             });
 
             ConvertExposedSkeletons(renderMeshConversionContext);
-            ConvertOptimizedSkeletons(renderMeshConversionContext);
+            //ConvertOptimizedSkeletons(renderMeshConversionContext);
             ConvertNonskinnedRenderers(renderMeshConversionContext);
             ConvertMeshes();
 

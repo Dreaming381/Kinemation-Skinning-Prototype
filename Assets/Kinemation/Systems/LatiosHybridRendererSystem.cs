@@ -677,11 +677,8 @@ namespace Latios.UnityReplacements
 
         protected override void OnCreate()
         {
-            if (Latios.Kinemation.HybridSkinningToggle.EnableHybrid)
-            {
-                Enabled = false;
-                return;
-            }
+            World.GetExistingSystem<HybridRendererSystem>().Enabled = false;
+
             // If all graphics rendering has been disabled, early out from all HR functionality
 #if HYBRID_RENDERER_DISABLED
             s_HybridRendererEnabled = false;
@@ -996,8 +993,6 @@ namespace Latios.UnityReplacements
         {
             if (!Enabled)
                 return;
-            if (Latios.Kinemation.HybridSkinningToggle.EnableHybrid)
-                return;
             CompleteJobs();
             Dispose();
         }
@@ -1067,16 +1062,9 @@ namespace Latios.UnityReplacements
         {
             if (!s_HybridRendererEnabled)
                 return;
-            if (Latios.Kinemation.HybridSkinningToggle.EnableHybrid)
-            {
-                Enabled = false;
-                return;
-            }
-            else
-            {
-                World.GetExistingSystem<HybridRendererSystem>().Enabled = false;
-            }
-            m_firstCull = true;
+
+            World.GetExistingSystem<HybridRendererSystem>().Enabled = false;
+            m_firstCull                                             = true;
 
             Profiler.BeginSample("CompleteJobs");
             Dependency.Complete();  // #todo
