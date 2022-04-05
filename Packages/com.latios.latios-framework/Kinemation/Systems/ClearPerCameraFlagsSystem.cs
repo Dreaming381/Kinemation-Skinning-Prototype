@@ -7,6 +7,7 @@ using Unity.Transforms;
 
 namespace Latios.Kinemation.Systems
 {
+    [DisableAutoCreation]
     public partial class ClearPerCameraFlagsSystem : SubSystem
     {
         EntityQuery m_query;

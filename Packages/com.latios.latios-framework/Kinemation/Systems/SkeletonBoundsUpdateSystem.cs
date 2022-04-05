@@ -9,6 +9,7 @@ using Unity.Transforms;
 
 namespace Latios.Kinemation.Systems
 {
+    [DisableAutoCreation]
     public partial class SkeletonBoundsUpdateSystem : SubSystem
     {
         EntityQuery m_exposedBonesQuery;

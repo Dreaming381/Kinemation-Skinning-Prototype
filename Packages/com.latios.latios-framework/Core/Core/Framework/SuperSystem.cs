@@ -189,7 +189,7 @@ namespace Latios
             catch (Exception e)
             {
                 if (propagateError)
-                    throw e;
+                    throw;
 
                 UnityEngine.Debug.LogException(e);
             }

@@ -13,6 +13,7 @@ using Unity.Transforms;
 
 namespace Latios.Kinemation.Systems
 {
+    [DisableAutoCreation]
     public partial class SkeletonMeshBindingReactiveSystem : SubSystem
     {
         EntityQuery m_newMeshesQuery;

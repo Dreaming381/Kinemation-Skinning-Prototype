@@ -12,6 +12,7 @@ using Unity.Transforms;
 // Todo: Split this system up once scheduling behavior is better understood
 namespace Latios.Kinemation.Systems
 {
+    [DisableAutoCreation]
     public partial class SkeletonFrustumCullingAndSkinningDispatchSystem : SubSystem
     {
         EntityQuery m_exposedBonesQuery;

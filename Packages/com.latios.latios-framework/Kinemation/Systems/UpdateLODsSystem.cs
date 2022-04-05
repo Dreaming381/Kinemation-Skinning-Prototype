@@ -26,6 +26,7 @@ using UnityEngine.Rendering;
 // These are split for job scheduling reasons, but share nearly identical logic otherwise.
 namespace Latios.Kinemation.Systems
 {
+    [DisableAutoCreation]
     public unsafe partial class UpdateSkinnedLODsSystem : SubSystem
     {
         LODGroupExtensions.LODParams m_PrevLODParams = default;
@@ -285,6 +286,7 @@ namespace Latios.Kinemation.Systems
         }
     }
 
+    [DisableAutoCreation]
     public unsafe partial class UpdateUnskinnedLODsSystem : SubSystem
     {
         LODGroupExtensions.LODParams m_PrevLODParams = default;

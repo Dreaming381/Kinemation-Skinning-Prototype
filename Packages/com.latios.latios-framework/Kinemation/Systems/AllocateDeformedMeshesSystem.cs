@@ -10,6 +10,7 @@ using Unity.Transforms;
 // This system just calculates the required size and distributes instance shader properties.
 namespace Latios.Kinemation.Systems
 {
+    [DisableAutoCreation]
     public partial class AllocateDeformedMeshesSystem : SubSystem
     {
         EntityQuery m_metaQuery;

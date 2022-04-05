@@ -14,6 +14,7 @@ using UnityEngine.Rendering;
 // But otherwise, most modifications are for shoehorning the skinning flags.
 namespace Latios.Kinemation.Systems
 {
+    [DisableAutoCreation]
     public partial class CullUnskinnedRenderersAndUpdateVisibilitiesSystem : SubSystem
     {
         EntityQuery m_query;
