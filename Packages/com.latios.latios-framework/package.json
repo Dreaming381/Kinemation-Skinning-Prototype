@@ -6,7 +6,8 @@
   "description": "Latios Framework for DOTS is a collection of tools, algorithms, and API extensions developed by a hardcore hobbyist game developer.\n\nThis package includes all of the following packages:\n\u25aa Core\n\u25aa Physics\n\nThis version is the embedded version from the Lsss project.",
   "dependencies": {
     "com.unity.entities": "0.50.0-preview.24",
-    "com.unity.audio.dspgraph": "0.1.0-preview.22"
+    "com.unity.audio.dspgraph": "0.1.0-preview.22",
+    "com.unity.rendering.hybrid": "0.50.0-preview.24"
   },
   "unityRelease": "30f1",
   "keywords": [
