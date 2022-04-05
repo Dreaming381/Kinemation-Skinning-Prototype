@@ -168,7 +168,7 @@ namespace Latios.Kinemation.Systems
             }.Schedule(Dependency);
 
             // We need synchronous access to this later, and we don't want to sync on the rest of the jobs in this system.
-            worldBlackboardEntity.UpdateJobDependency<MeshGpuManager>(Dependency, false);
+            //worldBlackboardEntity.UpdateJobDependency<MeshGpuManager>(Dependency, false);
 
             var sortJH = new SortBlockListJob
             {

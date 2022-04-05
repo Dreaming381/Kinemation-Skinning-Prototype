@@ -49,27 +49,12 @@ namespace Dragons
         protected override void CreateSystems()
         {
             GetOrCreateAndAddSystem<SpawnAndBuildReferencesSystem>();
-            GetOrCreateAndAddSystem<Latios.Kinemation.Systems.SkeletonMeshBindingReactiveSystem>();
             //GetOrCreateAndAddSystem<PokeDancerRootsSystem>();
             GetOrCreateAndAddSystem<SampleDancersExposedSystem>();
             GetOrCreateAndAddSystem<SampleDancersOptimizedSystem>();
             GetOrCreateAndAddSystem<Unity.Transforms.TransformSystemGroup>();
             GetOrCreateAndAddSystem<TempFixExportedTransformsSystem>();
             GetOrCreateAndAddSystem<CorrectDancerFeetSystem>();
-        }
-    }
-
-    [UpdateInGroup(typeof(SimulationSystemGroup))]
-    [UpdateAfter(typeof(Unity.Transforms.TransformSystemGroup))]
-    public class KinemationSuperSystem : RootSuperSystem
-    {
-        protected override void CreateSystems()
-        {
-            GetOrCreateAndAddSystem<Latios.Kinemation.Systems.SkeletonBoundsUpdateSystem>();
-            GetOrCreateAndAddSystem<Latios.Kinemation.Systems.UpdateChunkComputeDeformMetadataSystem>();
-            GetOrCreateAndAddSystem<Latios.Kinemation.Systems.AllocateDeformedMeshesSystem>();
-            GetOrCreateAndAddSystem<Latios.Kinemation.Systems.ClearPerFrameSkinningDataSystem>();
-            GetOrCreateAndAddSystem<Latios.Kinemation.Systems.BeginPerFrameMeshSkinningBuffersUploadSystem>();
         }
     }
 }
