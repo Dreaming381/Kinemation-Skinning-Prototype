@@ -27,6 +27,7 @@ namespace Latios.Systems
             [ReadOnly] public ComponentTypeHandle<LocalToWorld>      LocalToWorldTypeHandle;
             [ReadOnly] public BufferTypeHandle<Child>                ChildTypeHandle;
             [ReadOnly] public BufferFromEntity<Child>                ChildFromEntity;
+            [ReadOnly] public ComponentDataFromEntity<Parent>        ParentFromEntity;
             [ReadOnly] public ComponentDataFromEntity<LocalToParent> LocalToParentFromEntity;
             [ReadOnly] public EntityQueryMask                        LocalToWorldWriteGroupMask;
             public uint                                              LastSystemVersion;
@@ -34,9 +35,15 @@ namespace Latios.Systems
             [NativeDisableContainerSafetyRestriction]
             public ComponentDataFromEntity<LocalToWorld> LocalToWorldFromEntity;
 
-            void ChildLocalToWorld(ref float4x4 parentLocalToWorld, Entity entity, bool updateChildrenTransform, Entity parent, ref bool parentLtwValid)
+            void ChildLocalToWorld(ref float4x4 parentLocalToWorld,
+                                   Entity entity,
+                                   bool updateChildrenTransform,
+                                   Entity parent,
+                                   ref bool parentLtwValid,
+                                   bool parentsChildBufferChanged)
             {
                 updateChildrenTransform = updateChildrenTransform || LocalToParentFromEntity.DidChange(entity, LastSystemVersion);
+                updateChildrenTransform = updateChildrenTransform || (parentsChildBufferChanged && ParentFromEntity.DidChange(entity, LastSystemVersion));
 
                 float4x4 localToWorldMatrix = default;
                 bool     ltwIsValid         = false;
@@ -60,10 +67,11 @@ namespace Latios.Systems
                 }
                 if (ChildFromEntity.HasComponent(entity))
                 {
-                    var children = ChildFromEntity[entity];
+                    var children        = ChildFromEntity[entity];
+                    var childrenChanged = updateChildrenTransform || ChildFromEntity.DidChange(entity, LastSystemVersion);
                     for (int i = 0; i < children.Length; i++)
                     {
-                        ChildLocalToWorld(ref localToWorldMatrix, children[i].Value, updateChildrenTransform, entity, ref ltwIsValid);
+                        ChildLocalToWorld(ref localToWorldMatrix, children[i].Value, updateChildrenTransform, entity, ref ltwIsValid, childrenChanged);
                     }
                 }
             }
@@ -83,7 +91,8 @@ namespace Latios.Systems
                     var children           = chunkChildren[i];
                     for (int j = 0; j < children.Length; j++)
                     {
-                        ChildLocalToWorld(ref localToWorldMatrix, children[j].Value, updateChildrenTransform, Entity.Null, ref ltwIsValid);
+                        ChildLocalToWorld(ref localToWorldMatrix, children[j].Value, updateChildrenTransform, Entity.Null, ref ltwIsValid,
+                                          batchInChunk.DidChange(ChildTypeHandle, LastSystemVersion));
                     }
                 }
             }
@@ -135,6 +144,7 @@ namespace Latios.Systems
             var localToWorldType        = state.GetComponentTypeHandle<LocalToWorld>(true);
             var childType               = state.GetBufferTypeHandle<Child>(true);
             var childFromEntity         = state.GetBufferFromEntity<Child>(true);
+            var parentFromEntity        = state.GetComponentDataFromEntity<Parent>(true);
             var localToParentFromEntity = state.GetComponentDataFromEntity<LocalToParent>(true);
             var localToWorldFromEntity  = state.GetComponentDataFromEntity<LocalToWorld>();
 
@@ -143,6 +153,7 @@ namespace Latios.Systems
                 LocalToWorldTypeHandle     = localToWorldType,
                 ChildTypeHandle            = childType,
                 ChildFromEntity            = childFromEntity,
+                ParentFromEntity           = parentFromEntity,
                 LocalToParentFromEntity    = localToParentFromEntity,
                 LocalToWorldFromEntity     = localToWorldFromEntity,
                 LocalToWorldWriteGroupMask = m_LocalToWorldWriteGroupMask,

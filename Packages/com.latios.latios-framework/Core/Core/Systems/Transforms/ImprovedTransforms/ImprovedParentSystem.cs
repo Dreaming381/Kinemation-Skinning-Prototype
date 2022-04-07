@@ -419,7 +419,7 @@ namespace Latios.Systems
         public void OnUpdate(ref SystemState state)  //JobHandle inputDeps)
         {
             //inputDeps.Complete(); // #todo
-            state.Dependency.Complete();
+            //state.Dependency.Complete();
 
             k_ProfileDeletedParents.Begin();
             UpdateDeletedParents(ref state);

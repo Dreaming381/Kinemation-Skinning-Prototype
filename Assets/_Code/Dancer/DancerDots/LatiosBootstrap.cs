@@ -9,7 +9,7 @@ namespace Dragons
 {
     public class LatiosBootstrap : ICustomBootstrap
     {
-        public bool Initialize(string defaultWorldName)
+        public unsafe bool Initialize(string defaultWorldName)
         {
             var world                             = new LatiosWorld(defaultWorldName);
             World.DefaultGameObjectInjectionWorld = world;
@@ -29,6 +29,15 @@ namespace Dragons
 
             BootstrapTools.InjectUnitySystems(systems, world, simulationSystemGroup);
             BootstrapTools.InjectRootSuperSystems(systems, world, simulationSystemGroup);
+
+            world.Unmanaged.ResolveSystemState(world.Unmanaged.GetExistingUnmanagedSystem<Unity.Transforms.LocalToParentSystem>().Handle)->Enabled = false;
+            world.Unmanaged.ResolveSystemState(world.Unmanaged.GetExistingUnmanagedSystem<Unity.Transforms.ParentSystem>().Handle)->Enabled        = false;
+
+            //BootstrapTools.InjectSystem(typeof(ImprovedParentSystem),        world);
+            //BootstrapTools.InjectSystem(typeof(ImprovedLocalToParentSystem), world);
+            BootstrapTools.InjectSystem(typeof(ExtremeParentSystem),        world);
+            BootstrapTools.InjectSystem(typeof(ExtremeChildDepthsSystem),   world);
+            BootstrapTools.InjectSystem(typeof(ExtremeLocalToParentSystem), world);
 
             initializationSystemGroup.SortSystems();
             simulationSystemGroup.SortSystems();
