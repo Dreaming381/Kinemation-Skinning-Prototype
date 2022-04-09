@@ -30,21 +30,11 @@ namespace Dragons
             BootstrapTools.InjectUnitySystems(systems, world, simulationSystemGroup);
             BootstrapTools.InjectRootSuperSystems(systems, world, simulationSystemGroup);
 
-            world.Unmanaged.ResolveSystemState(world.Unmanaged.GetExistingUnmanagedSystem<Unity.Transforms.LocalToParentSystem>().Handle)->Enabled = false;
-            world.Unmanaged.ResolveSystemState(world.Unmanaged.GetExistingUnmanagedSystem<Unity.Transforms.ParentSystem>().Handle)->Enabled        = false;
-
-            //BootstrapTools.InjectSystem(typeof(ImprovedParentSystem),        world);
-            //BootstrapTools.InjectSystem(typeof(ImprovedLocalToParentSystem), world);
-            BootstrapTools.InjectSystem(typeof(ExtremeParentSystem),        world);
-            BootstrapTools.InjectSystem(typeof(ExtremeChildDepthsSystem),   world);
-            BootstrapTools.InjectSystem(typeof(ExtremeLocalToParentSystem), world);
+            CoreBootstrap.InstallExtremeTransforms(world);
 
             initializationSystemGroup.SortSystems();
             simulationSystemGroup.SortSystems();
             presentationSystemGroup.SortSystems();
-
-            //world.GetExistingSystem<Unity.Transforms.LocalToParentSystem>().Enabled  = false;
-            //world.GetExistingSystem<Latios.UnityReplacements.LocalToParentSystem2>().Enabled = false;
 
             ScriptBehaviourUpdateOrder.AppendWorldToCurrentPlayerLoop(world);
             return true;
