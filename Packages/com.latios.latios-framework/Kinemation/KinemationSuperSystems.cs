@@ -19,11 +19,13 @@ namespace Latios.Kinemation.Systems
 
             EnableSystemSorting = false;
 
-            GetOrCreateAndAddSystem<UpdateSkinnedLODsSystem>();
-            GetOrCreateAndAddSystem<ClearPerCameraFlagsSystem>();
-            GetOrCreateAndAddSystem<SkeletonFrustumCullingAndSkinningDispatchSystem>();
-            GetOrCreateAndAddSystem<UpdateUnskinnedLODsSystem>();
-            GetOrCreateAndAddSystem<CullUnskinnedRenderersAndUpdateVisibilitiesSystem>();
+            GetOrCreateAndAddSystem<FrustumCullBonesSystem>();
+            GetOrCreateAndAddSystem<FrustumCullSkeletonsSystem>();
+            GetOrCreateAndAddSystem<UpdateLODsSystem>();
+            GetOrCreateAndAddSystem<FrustumCullSkinnedEntitiesSystem>();
+            GetOrCreateAndAddSystem<FrustumCullUnskinnedEntitiesSystem>();
+            GetOrCreateAndAddSystem<SkinningDispatchSystem>();
+            GetOrCreateAndAddSystem<UpdateVisibilitiesSystem>();
         }
     }
 
@@ -33,11 +35,12 @@ namespace Latios.Kinemation.Systems
     {
         protected override void CreateSystems()
         {
-            GetOrCreateAndAddSystem<SkeletonBoundsUpdateSystem>();
-            GetOrCreateAndAddSystem<SkinnedMeshChunkBoundsUpdateSystem>();
+            GetOrCreateAndAddSystem<UpdateSkeletonBoundsSystem>();
+            GetOrCreateAndAddSystem<ClearPerFrameCullingMasksSystem>();
+            GetOrCreateAndAddSystem<UpdateSkinnedMeshChunkBoundsSystem>();
             GetOrCreateAndAddSystem<UpdateChunkComputeDeformMetadataSystem>();
             GetOrCreateAndAddSystem<AllocateDeformedMeshesSystem>();
-            GetOrCreateAndAddSystem<ClearPerFrameSkinningDataSystem>();
+            GetOrCreateAndAddSystem<ResetPerFrameSkinningMetadataJob>();
             GetOrCreateAndAddSystem<BeginPerFrameMeshSkinningBuffersUploadSystem>();
         }
     }
@@ -47,6 +50,7 @@ namespace Latios.Kinemation.Systems
     {
         protected override void CreateSystems()
         {
+            GetOrCreateAndAddSystem<AddMissingCullingMaskSystem>();
             GetOrCreateAndAddSystem<SkeletonMeshBindingReactiveSystem>();
         }
     }
@@ -56,6 +60,7 @@ namespace Latios.Kinemation.Systems
     {
         protected override void CreateSystems()
         {
+            GetOrCreateAndAddSystem<AddMissingCullingMaskSystem>();
             GetOrCreateAndAddSystem<SkeletonMeshBindingReactiveSystem>();
         }
     }

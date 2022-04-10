@@ -193,7 +193,6 @@ namespace Latios.Kinemation.Authoring
                     {
                         DstEntityManager.AddComponentData(entity, bounds);
                         DstEntityManager.AddComponentData(entity, rootReference);
-                        DstEntityManager.AddComponent<SkinningRenderCullingFlags>(entity);
                     }
                 }
 
@@ -230,6 +229,7 @@ namespace Latios.Kinemation.Authoring
                 DstEntityManager.AddComponent<SkeletonRootTag>(                rootEntity);
                 DstEntityManager.AddComponent<ExposedSkeletonCullingIndex>(    rootEntity);
                 DstEntityManager.AddComponent<PerFrameSkeletonBufferMetadata>( rootEntity);
+                DstEntityManager.AddChunkComponentData<ChunkPerCameraSkeletonCullingMask>(rootEntity);
                 var boneBuffer = DstEntityManager.AddBuffer<BoneReference>(rootEntity);
                 boneBuffer.CopyFrom(boneRefCache);
             }
@@ -366,7 +366,8 @@ namespace Latios.Kinemation.Authoring
                     DstEntityManager.AddComponent<SkeletonRootTag>(rootEntity);
                     DstEntityManager.AddBuffer<OptimizedBoneBounds>(rootEntity);  // Don't resize until something gets bound to it
                     DstEntityManager.AddComponent<SkeletonWorldBounds>(rootEntity);
-                    DstEntityManager.AddChunkComponentData<ChunkSkeletonWorldBounds>(rootEntity);
+                    DstEntityManager.AddChunkComponentData<ChunkSkeletonWorldBounds>(         rootEntity);
+                    DstEntityManager.AddChunkComponentData<ChunkPerCameraSkeletonCullingMask>(rootEntity);
                     DstEntityManager.AddComponent<PerFrameSkeletonBufferMetadata>(rootEntity);
                     var btrBuffer = DstEntityManager.AddBuffer<OptimizedBoneToRoot>(rootEntity).Reinterpret<float4x4>();
                     btrBuffer.ResizeUninitialized(cloneBones.Length);
@@ -409,7 +410,6 @@ namespace Latios.Kinemation.Authoring
                     {
                         DstEntityManager.AddComponentData(entity, bounds);
                         DstEntityManager.AddComponentData(entity, rootReference);
-                        DstEntityManager.AddComponent<SkinningRenderCullingFlags>(entity);
                     }
                 }
 

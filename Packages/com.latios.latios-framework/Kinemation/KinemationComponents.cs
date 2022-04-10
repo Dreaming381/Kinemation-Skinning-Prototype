@@ -11,6 +11,24 @@ using UnityEngine.Rendering;
 namespace Latios.Kinemation
 {
     #region Meshes
+
+    // This is a WriteGroup target.
+    public struct ChunkPerCameraCullingMask : IComponentData
+    {
+        public BitField64 lower;
+        public BitField64 upper;
+    }
+
+    // Warning: Do not write to this component!
+    // This is marked WriteGroup to ensure normal unskinned meshes can use write group filtering.
+    // Include this if you choose to use WriteGroup filtering yourself.
+    [WriteGroup(typeof(ChunkPerCameraCullingMask))]
+    public struct ChunkPerFrameCullingMask : IComponentData
+    {
+        public BitField64 lower;
+        public BitField64 upper;
+    }
+
     public struct BindSkeletonRoot : IComponentData
     {
         public EntityWith<SkeletonRootTag> root;
@@ -61,24 +79,12 @@ namespace Latios.Kinemation
         public uint firstVertexIndex;
     }
 
-    // Todo: Make these chunk flags once we can get entity index in chunk more easily.
-    internal struct SkinningRenderCullingFlags : IComponentData
-    {
-        public byte flags;
-
-        public const byte hasLodEnabled    = 0x01;
-        public const byte renderThisCamera = 0x02;
-        public const byte renderThisFrame  = 0x04;
-    }
-
+    [WriteGroup(typeof(ChunkPerCameraCullingMask))]
     internal struct ChunkComputeDeformMemoryMetadata : IComponentData
     {
-        public BitField64 lastFrameRenderedMaskUpper;
-        public BitField64 lastFrameRenderedMaskLower;
-        public int        prefixSumRendered;
-        public int        prefixSumNotRendered;
-        public int        verticesPerMesh;
-        public int        entitiesInChunk;
+        public int vertexStartPrefixSum;
+        public int verticesPerMesh;
+        public int entitiesInChunk;
     }
     #endregion
     #region All Skeletons
@@ -87,6 +93,12 @@ namespace Latios.Kinemation
     public struct BoneOwningSkeletonReference : IComponentData
     {
         public EntityWith<SkeletonRootTag> skeletonRoot;
+    }
+
+    public struct ChunkPerCameraSkeletonCullingMask : IComponentData
+    {
+        public BitField64 lower;
+        public BitField64 upper;
     }
 
     // This is system state to prevent copies on instantiate
@@ -98,11 +110,13 @@ namespace Latios.Kinemation
         public int                           meshWeightsStart;
     }
 
+    [MaximumChunkCapacity(128)]
     internal struct PerFrameSkeletonBufferMetadata : IComponentData
     {
         public int bufferId;
         public int startIndexInBuffer;
     }
+
     #endregion
     #region Exposed skeleton
     public struct BoneTag : IComponentData { }
@@ -190,18 +204,6 @@ namespace Latios.Kinemation
     #endregion
     #region Blackboard
     internal struct LastFrameRenderedNotRenderedVerticesTag : IComponentData { }
-
-    internal struct LastFrameRenderedNotRenderedVertices : ICollectionComponent
-    {
-        public NativeReference<int2> renderedNotRenderedCounts;
-
-        public Type AssociatedComponentType => typeof(LastFrameRenderedNotRenderedVerticesTag);
-
-        public JobHandle Dispose(JobHandle inputDeps)
-        {
-            return renderedNotRenderedCounts.Dispose(inputDeps);
-        }
-    }
 
     internal struct MeshGpuManagerTag : IComponentData { }
 
@@ -389,9 +391,9 @@ namespace Latios.Kinemation
         }
     }
 
-    internal struct PerCameraClearFlagsSystemChangeVersion : IComponentData
+    internal struct MaxRequiredDeformVertices : IComponentData
     {
-        public uint capturedWorldSystemVersion;
+        public int verticesCount;
     }
     #endregion
 }
