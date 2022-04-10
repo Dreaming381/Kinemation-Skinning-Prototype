@@ -31,6 +31,7 @@ namespace Dragons
             BootstrapTools.InjectRootSuperSystems(systems, world, simulationSystemGroup);
 
             CoreBootstrap.InstallExtremeTransforms(world);
+            BootstrapTools.InjectSystem(typeof(Latios.Kinemation.Systems.LatiosHybridRendererSystem), world);
 
             initializationSystemGroup.SortSystems();
             simulationSystemGroup.SortSystems();

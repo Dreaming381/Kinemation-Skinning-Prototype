@@ -77,8 +77,9 @@ namespace Latios
                 // Failed to find the unmanaged system
             }
 
-            BootstrapTools.InjectSystem(typeof(ImprovedParentSystem),        world);
-            BootstrapTools.InjectSystem(typeof(ImprovedLocalToParentSystem), world);
+            BootstrapTools.InjectSystem(typeof(ExtremeParentSystem),        world);
+            BootstrapTools.InjectSystem(typeof(ExtremeChildDepthsSystem),   world);
+            BootstrapTools.InjectSystem(typeof(ExtremeLocalToParentSystem), world);
         }
     }
 }

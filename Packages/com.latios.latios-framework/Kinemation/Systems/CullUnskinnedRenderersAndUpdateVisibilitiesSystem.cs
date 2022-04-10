@@ -49,9 +49,6 @@ namespace Latios.Kinemation.Systems
                 ChunkWorldRenderBounds           = GetComponentTypeHandle<ChunkWorldRenderBounds>(true),
                 IndexList                        = brgCullingContext.cullingContext.visibleIndices,
                 Batches                          = brgCullingContext.cullingContext.batchVisibility,
-#if UNITY_EDITOR
-                Stats = brgCullingContext.cullingStats,
-#endif
             }.ScheduleParallel(m_query, Dependency);
         }
 
@@ -91,10 +88,6 @@ namespace Latios.Kinemation.Systems
             [NativeSetThreadIndex] public int ThreadIndex;
 #pragma warning restore 649
 
-#if UNITY_EDITOR
-            [NativeDisableUnsafePtrRestriction] public CullingStats* Stats;
-#endif
-
             public void Execute(ArchetypeChunk archetypeChunk, int chunkIndex)
             {
                 var hybridChunkInfoArray = archetypeChunk.GetNativeArray(HybridChunkInfo);
@@ -122,11 +115,6 @@ namespace Latios.Kinemation.Systems
                     var chunkHeader = chunkHeaderArray[entityIndex];
                     var chunkBounds = chunkBoundsArray[entityIndex];
 
-#if UNITY_EDITOR
-                    ref var stats = ref Stats[ThreadIndex];
-                    stats.Stats[CullingStats.kChunkTotal]++;
-#endif
-
                     int internalBatchIndex = hybridChunkInfo.InternalIndex;
                     int externalBatchIndex = InternalToExternalRemappingTable[internalBatchIndex];
 
@@ -149,10 +137,6 @@ namespace Latios.Kinemation.Systems
 
                     if (anyLodEnabled)
                     {
-#if UNITY_EDITOR
-                        stats.Stats[CullingStats.kChunkCountAnyLod]++;
-#endif
-
                         var perInstanceCull = 0 != (chunkCullingData.Flags & HybridChunkCullingData.kFlagInstanceCulling);
 
                         var chunkIn = perInstanceCull ?
@@ -161,10 +145,6 @@ namespace Latios.Kinemation.Systems
 
                         if (chunkIn == FrustumPlanes.IntersectResult.Partial || hasSkinning)
                         {
-#if UNITY_EDITOR
-                            int instanceTestCount = 0;
-#endif
-
                             // Output to the scratch area first, then atomic allocate space for the correct amount of instances,
                             // and finally memcpy from the scratch to the real output.
                             int* scratch = ((int*)ThreadLocalIndexLists.GetUnsafePtr());
@@ -194,10 +174,6 @@ namespace Latios.Kinemation.Systems
                                         instanceOutputOffset += advance;
 
                                         lodWord ^= 1ul << bitIndex;
-
-#if UNITY_EDITOR
-                                        instanceTestCount++;
-#endif
                                     }
                                     if (j == 0)
                                     {
@@ -232,10 +208,6 @@ namespace Latios.Kinemation.Systems
                                         instanceOutputOffset += advance;
 
                                         lodWord ^= 1ul << bitIndex;
-
-#if UNITY_EDITOR
-                                        instanceTestCount++;
-#endif
                                     }
                                 }
                             }
@@ -256,18 +228,9 @@ namespace Latios.Kinemation.Systems
                                     scratch,
                                     chunkOutputCount * sizeof(int));
                             }
-
-#if UNITY_EDITOR
-                            stats.Stats[CullingStats.kChunkCountInstancesProcessed]++;
-                            stats.Stats[CullingStats.kInstanceTests] += instanceTestCount;
-#endif
                         }
                         else if (chunkIn == FrustumPlanes.IntersectResult.In)
                         {
-#if UNITY_EDITOR
-                            stats.Stats[CullingStats.kChunkCountFullyIn]++;
-#endif
-
                             // Since the chunk is fully in, we can easily count how many instances we will output
                             int chunkOutputCount = math.countbits(chunkEntityLodEnabled.Enabled[0]) +
                                                    math.countbits(chunkEntityLodEnabled.Enabled[1]);

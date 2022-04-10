@@ -42,7 +42,7 @@ namespace Latios.Kinemation
         public BlobArray<BoneWeightLinkedList> boneWeights;
         public BlobArray<uint>                 boneWeightBatchStarts;
         public Hash128                         authoredHash;
-        public FixedString128Bytes                  name;
+        public FixedString128Bytes             name;
 
         public override int GetHashCode() => authoredHash.GetHashCode();
     }
@@ -345,18 +345,25 @@ namespace Latios.Kinemation
         }
     }
 
+    public struct CullingPlane : IBufferElementData
+    {
+        public UnityEngine.Plane plane;
+    }
+
+    public struct CullingContext : IComponentData
+    {
+        public LODParameters lodParameters;
+        public float4x4      cullingMatrix;
+        public float         nearPlane;
+        public int           cullIndexThisFrame;
+    }
+
     internal struct BrgCullingContextTag : IComponentData { }
 
     internal unsafe struct BrgCullingContext : ICollectionComponent
     {
-        public BatchRendererGroup  rendererGroup;
         public BatchCullingContext cullingContext;
         public NativeArray<int>    internalToExternalMappingIds;
-        public bool                firstCull;
-#if UNITY_EDITOR
-        public CullingStats* cullingStats;
-        public float maxCameraMoveDistance;
-#endif
 
         public Type AssociatedComponentType => typeof(BrgCullingContextTag);
 

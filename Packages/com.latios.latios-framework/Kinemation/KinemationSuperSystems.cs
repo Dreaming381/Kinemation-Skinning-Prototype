@@ -27,13 +27,14 @@ namespace Latios.Kinemation.Systems
         }
     }
 
-    [UpdateInGroup(typeof(PresentationSystemGroup))]
-    [UpdateAfter(typeof(StructuralChangePresentationSystemGroup))]
+    [UpdateInGroup(typeof(UpdatePresentationSystemGroup))]
+    [UpdateAfter(typeof(RenderBoundsUpdateSystem))]
     public class KinemationSuperSystem : RootSuperSystem
     {
         protected override void CreateSystems()
         {
             GetOrCreateAndAddSystem<SkeletonBoundsUpdateSystem>();
+            GetOrCreateAndAddSystem<SkinnedMeshChunkBoundsUpdateSystem>();
             GetOrCreateAndAddSystem<UpdateChunkComputeDeformMetadataSystem>();
             GetOrCreateAndAddSystem<AllocateDeformedMeshesSystem>();
             GetOrCreateAndAddSystem<ClearPerFrameSkinningDataSystem>();

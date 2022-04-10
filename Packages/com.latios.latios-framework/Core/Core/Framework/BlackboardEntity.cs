@@ -29,14 +29,6 @@ namespace Latios
             return em.AddComponentData(entity, data);
         }
 
-        public bool AddComponentIfMissing<T>() where T : struct, IComponentData
-        {
-            if (em.HasComponent<T>(entity))
-                return false;
-            em.AddComponent<T>(entity);
-            return true;
-        }
-
         public bool AddComponentDataIfMissing<T>(T data) where T : struct, IComponentData
         {
             if (em.HasComponent<T>(entity))
@@ -85,9 +77,9 @@ namespace Latios
             return em.AddBuffer<T>(entity);
         }
 
-        public DynamicBuffer<T> GetBuffer<T>() where T : struct, IBufferElementData
+        public DynamicBuffer<T> GetBuffer<T>(bool readOnly = false) where T : struct, IBufferElementData
         {
-            return em.GetBuffer<T>(entity);
+            return em.GetBuffer<T>(entity, readOnly);
         }
 
         public void AddCollectionComponent<T>(T value, bool isInitialized = true) where T : struct, ICollectionComponent

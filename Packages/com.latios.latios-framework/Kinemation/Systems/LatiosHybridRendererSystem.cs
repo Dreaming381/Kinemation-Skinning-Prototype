@@ -1,3 +1,4 @@
+#region Header
 // #define DISABLE_HYBRID_V2_SRP_LOGS
 // #define DEBUG_LOG_HYBRID_V2
 // #define DEBUG_LOG_CHUNK_CHANGES
@@ -76,7 +77,9 @@ using Unity.Rendering.Occlusion;
 
 using Unity.Rendering;
 
-namespace Latios.UnityReplacements
+#endregion
+
+namespace Latios.Kinemation.Systems
 {
     /// <summary>
     /// Renders all Entities containing both RenderMesh and LocalToWorld components.
@@ -89,159 +92,9 @@ namespace Latios.UnityReplacements
     [UpdateAfter(typeof(UpdatePresentationSystemGroup))]
     [UpdateBefore(typeof(HybridRendererSystem))]
 
-    public unsafe partial class LatiosHybridRendererSystem : SystemBase
+    public unsafe partial class LatiosHybridRendererSystem : SubSystem
     {
-        #region OriginalA
-        static private bool s_HybridRendererEnabled = true;
-        public static bool HybridRendererEnabled => s_HybridRendererEnabled;
-
-        private ulong m_PersistentInstanceDataSize;
-
-        private EntityQuery m_HybridRenderedQuery;
-
-#if UNITY_EDITOR
-        private EditorRenderData m_DefaultEditorRenderData = new EditorRenderData
-        { SceneCullingMask = UnityEditor.SceneManagement.EditorSceneManager.DefaultSceneCullingMask };
-#else
-        private EditorRenderData m_DefaultEditorRenderData = new EditorRenderData { SceneCullingMask = ~0UL };
-#endif
-
-        const int   kInitialMaxBatchCount         = 1 * 1024;
-        const float kMaxBatchGrowFactor           = 2f;
-        const int   kMaxEntitiesPerBatch          = 1023;  // C++ code is restricted to a certain maximum size
-        const int   kNumNewChunksPerThread        = 1;  // TODO: Tune this
-        const int   kNumScatteredIndicesPerThread = 8;  // TODO: Tune this
-        const int   kNumGatheredIndicesPerThread  = 128 * 8;  // Two cache lines per thread
-        const int   kBuiltinCbufferIndex          = 0;
-
-        const int   kMaxChunkMetadata      = 1 * 1024 * 1024;
-        const ulong kMaxGPUAllocatorMemory = 1024 * 1024 * 1024;  // 1GiB of potential memory space
-        const ulong kGPUBufferSizeInitial  = 32 * 1024 * 1024;
-        const ulong kGPUBufferSizeMax      = 1023 * 1024 * 1024;
-        const int   kGPUUploaderChunkSize  = 4 * 1024 * 1024;
-
-        private enum BatchFlags
-        {
-            NeedMotionVectorPassFlag = 0x1
-        };
-
-        private BatchRendererGroup m_BatchRendererGroup;
-
-        private ComputeBuffer          m_GPUPersistentInstanceData;
-        private SparseUploader         m_GPUUploader;
-        private ThreadedSparseUploader m_ThreadedGPUUploader;
-        private HeapAllocator          m_GPUPersistentAllocator;
-        private HeapBlock              m_SharedZeroAllocation;
-        private HeapBlock              m_SharedAmbientProbeAllocation;
-
-        private HeapAllocator m_ChunkMetadataAllocator;
-
-        private NativeList<BatchInfo>       m_BatchInfos;
-        private NativeList<BatchMotionInfo> m_BatchMotionInfos;
-#if USE_PICKING_MATRICES
-        private NativeList<IntPtr> m_BatchPickingMatrices;
-#endif
-        private NativeArray<ChunkProperty> m_ChunkProperties;
-        private NativeHashMap<int, int>    m_ExistingBatchInternalIndices;
-        private ComponentTypeCache         m_ComponentTypeCache;
-
-        private NativeList<float> m_BatchAABBs;
-
-        private NativeList<int> m_InternalToExternalIds;
-        private NativeList<int> m_ExternalToInternalIds;
-        private NativeList<int> m_InternalIdFreelist;
-        private int             m_ExternalBatchCount;
-        private SortedSet<int>  m_SortedInternalIds;
-
-        private EntityQuery m_MetaEntitiesForHybridRenderableChunks;
-
-        private NativeList<DefaultValueBlitDescriptor> m_DefaultValueBlits;
-
-        private JobHandle m_AABBsCleared;
-        private bool      m_AABBClearKicked;
-
-#if UNITY_EDITOR
-        float m_CamMoveDistance;
-#endif
-
-#if UNITY_EDITOR
-        private CullingStats* m_CullingStats = null;
-
-        public CullingStats ComputeCullingStats()
-        {
-            var result = default(CullingStats);
-            for (int i = 0; i < JobsUtility.MaxJobThreadCount; ++i)
-            {
-                ref var s = ref m_CullingStats[i];
-
-                for (int f = 0; f < (int)CullingStats.kCount; ++f)
-                {
-                    result.Stats[f] += s.Stats[f];
-                }
-            }
-
-            result.CameraMoveDistance = m_CamMoveDistance;
-            return result;
-        }
-
-#endif
-        enum DefaultValueKind
-        {
-            ZeroDefault,
-            NonzeroDefault,
-            SharedBuiltin,
-        }
-
-        struct MaterialPropertyType
-        {
-            public int              TypeIndex;
-            public short            SizeBytesCPU;
-            public short            SizeBytesGPU;
-            public DefaultValueKind DefaultValueKind;
-        };
-
-        struct PropertyMapping
-        {
-            public string                       Name;
-            public short                        SizeCPU;
-            public short                        SizeGPU;
-            public MaterialPropertyDefaultValue DefaultValue;
-            public bool                         IsShared;
-        }
-
-        NativeMultiHashMap<int, MaterialPropertyType> m_MaterialPropertyTypes;
-        NativeMultiHashMap<int, MaterialPropertyType> m_MaterialPropertyTypesShared;
-        NativeHashSet<int>                            m_SharedComponentOverrideTypeIndices;
-
-        // When extra debugging is enabled, store mappings from NameIDs to property names,
-        // and from type indices to type names.
-        Dictionary<int, string>                  m_MaterialPropertyNames;
-        Dictionary<int, string>                  m_MaterialPropertyTypeNames;
-        Dictionary<int, float4x4>                m_MaterialPropertyDefaultValues;
-        Dictionary<int, int>                     m_MaterialPropertySharedBuiltins;
-        static Dictionary<Type, PropertyMapping> s_TypeToPropertyMappings = new Dictionary<Type, PropertyMapping>();
-
-#if USE_UNITY_OCCLUSION
-        private OcclusionCulling m_OcclusionCulling;
-#endif
-
-        private bool     m_FirstFrameAfterInit;
-        private Shader   m_BuiltinErrorShader;
-        private Material m_ErrorMaterial;
-#if UNITY_EDITOR
-        private TrackShaderReflectionChangesSystem m_ShaderReflectionChangesSystem;
-        private Dictionary<Shader, bool> m_ShaderHasCompileErrors;
-#endif
-
-        NativeHashMap<EntityArchetype, SharedComponentOverridesInfo> m_ArchetypeSharedOverrideInfos;
-        private SHProperties                                         m_GlobalAmbientProbe;
-        private bool                                                 m_GlobalAmbientProbeDirty;
-        public struct SharedComponentOverridesInfo
-        {
-            public UnsafeList<int> SharedOverrideTypeIndices;
-            public ulong           SharedOverrideHash;
-        }
-
+        #region UtilityTypes
         // Contains the immutable properties that are set
         // upon batch creation. Only chunks with identical BatchCreateInfo
         // can be combined in a single batch.
@@ -511,6 +364,232 @@ namespace Latios.UnityReplacements
             }
         }
 
+        private enum BatchFlags
+        {
+            NeedMotionVectorPassFlag = 0x1
+        };
+
+        enum DefaultValueKind
+        {
+            ZeroDefault,
+            NonzeroDefault,
+            SharedBuiltin,
+        }
+
+        struct MaterialPropertyType
+        {
+            public int              TypeIndex;
+            public short            SizeBytesCPU;
+            public short            SizeBytesGPU;
+            public DefaultValueKind DefaultValueKind;
+        };
+
+        struct PropertyMapping
+        {
+            public string                       Name;
+            public short                        SizeCPU;
+            public short                        SizeGPU;
+            public MaterialPropertyDefaultValue DefaultValue;
+            public bool                         IsShared;
+        }
+
+        private struct BatchInfo
+        {
+            // There is one BatchProperty per shader property, which can be different from
+            // the amount of overriding components.
+            // TODO: Most of this data is no longer needed after the batch has been created, and could be
+            // allocated from temp memory and freed after the batch has been created.
+
+#pragma warning disable CS0649
+            // CS0649: Field is never assigned to, and will always have its default value 0
+            internal struct BatchProperty
+            {
+                public int   MetadataOffset;
+                public short SizeBytesCPU;
+                public short SizeBytesGPU;
+                public int   CbufferIndex;
+                public int   OverrideComponentsIndex;
+                public int   OverrideSharedComponentsIndex;
+                public int   SharedBuiltinOffset;
+#if USE_PROPERTY_ASSERTS
+                public int NameID;
+#endif
+                public BatchPropertyOverrideStatus OverrideStatus;
+                public HeapBlock                   GPUAllocation;
+                public float4x4                    DefaultValue;
+            }
+
+            // There is one BatchOverrideComponent for each component type that can possibly
+            // override any of the BatchProperty entries. Some entries might have zero,
+            // some entries might have multiples. Each chunk is only allowed a single overriding component.
+            // This list is allocated from temporary memory and is freed after the batch has been fully created.
+            internal struct BatchOverrideComponent
+            {
+                public int BatchPropertyIndex;
+                public int TypeIndex;
+            }
+#pragma warning restore CS0649
+
+            public UnsafeList<BatchProperty>          Properties;
+            public UnsafeList<BatchOverrideComponent> OverrideComponents;
+            public UnsafeList<BatchOverrideComponent> OverrideSharedComponents;
+            public UnsafeList<HeapBlock>              ChunkMetadataAllocations;
+
+            public void Dispose()
+            {
+                if (Properties.IsCreated)
+                    Properties.Dispose();
+                if (OverrideComponents.IsCreated)
+                    OverrideComponents.Dispose();
+                if (OverrideSharedComponents.IsCreated)
+                    OverrideSharedComponents.Dispose();
+                if (ChunkMetadataAllocations.IsCreated)
+                    ChunkMetadataAllocations.Dispose();
+            }
+        }
+
+        public struct SharedComponentOverridesInfo
+        {
+            public UnsafeList<int> SharedOverrideTypeIndices;
+            public ulong           SharedOverrideHash;
+        }
+
+        // Status enums are ordered so that numerically larger enums always take priority
+        // if at least one chunk in the batch requires that.
+        public enum BatchPropertyOverrideStatus
+        {
+            Uninitialized,  // Override status has not been initialized
+            SharedZeroDefault,  // Property uses a zero bit pattern value for all entities
+            SharedNonzeroDefault,  // Property uses a shared value for all entities, but it's not zero
+            SharedComponentOverride,  // Property uses a shared value that is read from a shared component
+            SharedBuiltin,  // Property uses a shared value that is set by special fixed function code
+            PerEntityOverride,  // Property uses per-entity unique values
+        }
+
+        struct BatchUpdateStatistics
+        {
+            // Ifdef struct contents to avoid warnings when ifdef is disabled.
+#if DEBUG_LOG_BATCH_UPDATES
+            public int BatchesWithChangedBounds;
+            public int BatchesNeedingMotionVectors;
+            public int BatchesWithoutMotionVectors;
+
+            public bool NonZero =>
+            BatchesWithChangedBounds > 0 ||
+            BatchesNeedingMotionVectors > 0 ||
+            BatchesWithoutMotionVectors > 0;
+#endif
+        }
+
+        private struct CullingComponentTypes
+        {
+            public ComponentTypeHandle<RootLODRange>               RootLODRanges;
+            public ComponentTypeHandle<RootLODWorldReferencePoint> RootLODWorldReferencePoints;
+            public ComponentTypeHandle<LODRange>                   LODRanges;
+            public ComponentTypeHandle<LODWorldReferencePoint>     LODWorldReferencePoints;
+            public ComponentTypeHandle<PerInstanceCullingTag>      PerInstanceCullingTag;
+        }
+
+        #endregion
+
+        #region Variables
+        static private bool s_HybridRendererEnabled = true;
+        public static bool HybridRendererEnabled => s_HybridRendererEnabled;
+
+        private ulong m_PersistentInstanceDataSize;
+
+        private EntityQuery m_HybridRenderedQuery;
+
+#if UNITY_EDITOR
+        private EditorRenderData m_DefaultEditorRenderData = new EditorRenderData
+        { SceneCullingMask = UnityEditor.SceneManagement.EditorSceneManager.DefaultSceneCullingMask };
+#else
+        private EditorRenderData m_DefaultEditorRenderData = new EditorRenderData { SceneCullingMask = ~0UL };
+#endif
+
+        const int   kInitialMaxBatchCount         = 1 * 1024;
+        const float kMaxBatchGrowFactor           = 2f;
+        const int   kMaxEntitiesPerBatch          = 1023;  // C++ code is restricted to a certain maximum size
+        const int   kNumNewChunksPerThread        = 1;  // TODO: Tune this
+        const int   kNumScatteredIndicesPerThread = 8;  // TODO: Tune this
+        const int   kNumGatheredIndicesPerThread  = 128 * 8;  // Two cache lines per thread
+        const int   kBuiltinCbufferIndex          = 0;
+
+        const int   kMaxChunkMetadata      = 1 * 1024 * 1024;
+        const ulong kMaxGPUAllocatorMemory = 1024 * 1024 * 1024;  // 1GiB of potential memory space
+        const ulong kGPUBufferSizeInitial  = 32 * 1024 * 1024;
+        const ulong kGPUBufferSizeMax      = 1023 * 1024 * 1024;
+        const int   kGPUUploaderChunkSize  = 4 * 1024 * 1024;
+
+        private BatchRendererGroup m_BatchRendererGroup;
+
+        private ComputeBuffer          m_GPUPersistentInstanceData;
+        private SparseUploader         m_GPUUploader;
+        private ThreadedSparseUploader m_ThreadedGPUUploader;
+        private HeapAllocator          m_GPUPersistentAllocator;
+        private HeapBlock              m_SharedZeroAllocation;
+        private HeapBlock              m_SharedAmbientProbeAllocation;
+
+        private HeapAllocator m_ChunkMetadataAllocator;
+
+        private NativeList<BatchInfo>       m_BatchInfos;
+        private NativeList<BatchMotionInfo> m_BatchMotionInfos;
+#if USE_PICKING_MATRICES
+        private NativeList<IntPtr> m_BatchPickingMatrices;
+#endif
+        private NativeArray<ChunkProperty> m_ChunkProperties;
+        private NativeHashMap<int, int>    m_ExistingBatchInternalIndices;
+        private ComponentTypeCache         m_ComponentTypeCache;
+
+        private NativeList<float> m_BatchAABBs;
+
+        private NativeList<int> m_InternalToExternalIds;
+        private NativeList<int> m_ExternalToInternalIds;
+        private NativeList<int> m_InternalIdFreelist;
+        private int             m_ExternalBatchCount;
+        private SortedSet<int>  m_SortedInternalIds;
+
+        private EntityQuery m_MetaEntitiesForHybridRenderableChunks;
+
+        private NativeList<DefaultValueBlitDescriptor> m_DefaultValueBlits;
+
+        private JobHandle m_AABBsCleared;
+        private bool      m_AABBClearKicked;
+
+        NativeMultiHashMap<int, MaterialPropertyType> m_MaterialPropertyTypes;
+        NativeMultiHashMap<int, MaterialPropertyType> m_MaterialPropertyTypesShared;
+        NativeHashSet<int>                            m_SharedComponentOverrideTypeIndices;
+
+        // When extra debugging is enabled, store mappings from NameIDs to property names,
+        // and from type indices to type names.
+        Dictionary<int, string>                  m_MaterialPropertyNames;
+        Dictionary<int, string>                  m_MaterialPropertyTypeNames;
+        Dictionary<int, float4x4>                m_MaterialPropertyDefaultValues;
+        Dictionary<int, int>                     m_MaterialPropertySharedBuiltins;
+        static Dictionary<Type, PropertyMapping> s_TypeToPropertyMappings = new Dictionary<Type, PropertyMapping>();
+
+#if USE_UNITY_OCCLUSION
+        private OcclusionCulling m_OcclusionCulling;
+#endif
+
+        private bool     m_FirstFrameAfterInit;
+        private Shader   m_BuiltinErrorShader;
+        private Material m_ErrorMaterial;
+#if UNITY_EDITOR
+        private TrackShaderReflectionChangesSystem m_ShaderReflectionChangesSystem;
+        private Dictionary<Shader, bool> m_ShaderHasCompileErrors;
+#endif
+
+        NativeHashMap<EntityArchetype, SharedComponentOverridesInfo> m_ArchetypeSharedOverrideInfos;
+        private SHProperties                                         m_GlobalAmbientProbe;
+        private bool                                                 m_GlobalAmbientProbeDirty;
+
+        int                          m_cullIndexThisFrame = 0;
+        KinemationCullingSuperSystem m_cullingSuperSystem;
+        #endregion
+
+        #region UtilityFunctions
+
         private SharedComponentOverridesInfo SharedComponentOverridesForChunk(ArchetypeChunk chunk)
         {
             // Since archetypes are immutable, we can memoize the override infos which are a bit
@@ -590,18 +669,6 @@ namespace Latios.UnityReplacements
             return info;
         }
 
-        // Status enums are ordered so that numerically larger enums always take priority
-        // if at least one chunk in the batch requires that.
-        public enum BatchPropertyOverrideStatus
-        {
-            Uninitialized,  // Override status has not been initialized
-            SharedZeroDefault,  // Property uses a zero bit pattern value for all entities
-            SharedNonzeroDefault,  // Property uses a shared value for all entities, but it's not zero
-            SharedComponentOverride,  // Property uses a shared value that is read from a shared component
-            SharedBuiltin,  // Property uses a shared value that is set by special fixed function code
-            PerEntityOverride,  // Property uses per-entity unique values
-        }
-
         private static bool PropertyIsZero(BatchPropertyOverrideStatus status) =>
         status == BatchPropertyOverrideStatus.SharedZeroDefault;
 
@@ -620,238 +687,6 @@ namespace Latios.UnityReplacements
         numInstances :
         1;
 
-        private struct BatchInfo
-        {
-            // There is one BatchProperty per shader property, which can be different from
-            // the amount of overriding components.
-            // TODO: Most of this data is no longer needed after the batch has been created, and could be
-            // allocated from temp memory and freed after the batch has been created.
-
-#pragma warning disable CS0649
-            // CS0649: Field is never assigned to, and will always have its default value 0
-            internal struct BatchProperty
-            {
-                public int   MetadataOffset;
-                public short SizeBytesCPU;
-                public short SizeBytesGPU;
-                public int   CbufferIndex;
-                public int   OverrideComponentsIndex;
-                public int   OverrideSharedComponentsIndex;
-                public int   SharedBuiltinOffset;
-#if USE_PROPERTY_ASSERTS
-                public int NameID;
-#endif
-                public BatchPropertyOverrideStatus OverrideStatus;
-                public HeapBlock                   GPUAllocation;
-                public float4x4                    DefaultValue;
-            }
-
-            // There is one BatchOverrideComponent for each component type that can possibly
-            // override any of the BatchProperty entries. Some entries might have zero,
-            // some entries might have multiples. Each chunk is only allowed a single overriding component.
-            // This list is allocated from temporary memory and is freed after the batch has been fully created.
-            internal struct BatchOverrideComponent
-            {
-                public int BatchPropertyIndex;
-                public int TypeIndex;
-            }
-#pragma warning restore CS0649
-
-            public UnsafeList<BatchProperty>          Properties;
-            public UnsafeList<BatchOverrideComponent> OverrideComponents;
-            public UnsafeList<BatchOverrideComponent> OverrideSharedComponents;
-            public UnsafeList<HeapBlock>              ChunkMetadataAllocations;
-
-            public void Dispose()
-            {
-                if (Properties.IsCreated)
-                    Properties.Dispose();
-                if (OverrideComponents.IsCreated)
-                    OverrideComponents.Dispose();
-                if (OverrideSharedComponents.IsCreated)
-                    OverrideSharedComponents.Dispose();
-                if (ChunkMetadataAllocations.IsCreated)
-                    ChunkMetadataAllocations.Dispose();
-            }
-        }
-
-        protected override void OnCreate()
-        {
-            World.GetExistingSystem<HybridRendererSystem>().Enabled = false;
-
-            // If all graphics rendering has been disabled, early out from all HR functionality
-#if HYBRID_RENDERER_DISABLED
-            s_HybridRendererEnabled = false;
-#else
-            s_HybridRendererEnabled = HybridUtils.IsHybridSupportedOnSystem();
-#endif
-            if (!s_HybridRendererEnabled)
-            {
-#if !DISABLE_HYBRID_V2_SRP_LOGS
-                Debug.Log("No SRP present, no compute shader support, or running with -nographics. Hybrid Renderer disabled");
-#endif
-                return;
-            }
-            m_cullingSuperSystem = World.GetOrCreateSystem<Kinemation.Systems.KinemationCullingSuperSystem>();
-
-            m_PersistentInstanceDataSize = kGPUBufferSizeInitial;
-
-            m_HybridRenderedQuery = GetEntityQuery(HybridUtils.GetHybridRenderedQueryDesc());
-
-            m_BatchRendererGroup = new BatchRendererGroup(this.OnPerformCulling);
-
-            m_GPUPersistentAllocator = new HeapAllocator(kMaxGPUAllocatorMemory, 16);
-            m_ChunkMetadataAllocator = new HeapAllocator(kMaxChunkMetadata);
-
-            m_BatchInfos       = NewNativeListResized<BatchInfo>(kInitialMaxBatchCount, Allocator.Persistent);
-            m_BatchMotionInfos = NewNativeListResized<BatchMotionInfo>(kInitialMaxBatchCount, Allocator.Persistent);
-#if USE_PICKING_MATRICES
-            m_BatchPickingMatrices = NewNativeListResized<IntPtr>(kInitialMaxBatchCount, Allocator.Persistent);
-#endif
-            m_ChunkProperties              = new NativeArray<ChunkProperty>(kMaxChunkMetadata, Allocator.Persistent);
-            m_ExistingBatchInternalIndices = new NativeHashMap<int, int>(128, Allocator.Persistent);
-            m_ComponentTypeCache           = new ComponentTypeCache(128);
-
-            m_BatchAABBs = NewNativeListResized<float>(kInitialMaxBatchCount * (int)HybridChunkUpdater.kFloatsPerAABB, Allocator.Persistent);
-
-            m_DefaultValueBlits = new NativeList<DefaultValueBlitDescriptor>(Allocator.Persistent);
-
-            m_AABBsCleared    = new JobHandle();
-            m_AABBClearKicked = false;
-
-            // Globally allocate a single zero matrix and reuse that for all default values that are pure zero
-            m_SharedZeroAllocation = m_GPUPersistentAllocator.Allocate((ulong)sizeof(float4x4));
-            Debug.Assert(!m_SharedZeroAllocation.Empty, "Allocation of constant-zero data failed");
-            // Make sure the global zero is actually zero.
-            m_DefaultValueBlits.Add(new DefaultValueBlitDescriptor
-            {
-                DefaultValue      = float4x4.zero,
-                DestinationOffset = (uint)m_SharedZeroAllocation.begin,
-                ValueSizeBytes    = (uint)sizeof(float4x4),
-                Count             = 1,
-            });
-
-            m_SharedAmbientProbeAllocation = m_GPUPersistentAllocator.Allocate((ulong)UnsafeUtility.SizeOf<SHProperties>());
-            Debug.Assert(!m_SharedAmbientProbeAllocation.Empty, "Allocation of the global ambient probe failed");
-            UpdateGlobalAmbientProbe(new SHProperties());
-
-            ResetIds();
-
-            m_MetaEntitiesForHybridRenderableChunks = GetEntityQuery(
-                new EntityQueryDesc
-
-            {
-                All = new[]
-                {
-                    ComponentType.ReadWrite<HybridChunkInfo>(),
-                    ComponentType.ReadOnly<ChunkHeader>(),
-                },
-            });
-
-#if UNITY_EDITOR
-            m_CullingStats = (CullingStats*)UnsafeUtility.Malloc(JobsUtility.MaxJobThreadCount * sizeof(CullingStats),
-                                                                 64, Allocator.Persistent);
-#endif
-
-            // Collect all components with [MaterialProperty] attribute
-            m_MaterialPropertyTypes              = new NativeMultiHashMap<int, MaterialPropertyType>(256, Allocator.Persistent);
-            m_MaterialPropertyTypesShared        = new NativeMultiHashMap<int, MaterialPropertyType>(256, Allocator.Persistent);
-            m_SharedComponentOverrideTypeIndices = new NativeHashSet<int>(256, Allocator.Persistent);
-            m_MaterialPropertyNames              = new Dictionary<int, string>();
-            m_MaterialPropertyTypeNames          = new Dictionary<int, string>();
-            m_MaterialPropertyDefaultValues      = new Dictionary<int, float4x4>();
-            m_MaterialPropertySharedBuiltins     = new Dictionary<int, int>();
-            m_ArchetypeSharedOverrideInfos       =
-                new NativeHashMap<EntityArchetype, SharedComponentOverridesInfo>(256, Allocator.Persistent);
-
-            // Some hardcoded mappings to avoid dependencies to Hybrid from DOTS
-#if SRP_10_0_0_OR_NEWER
-            RegisterMaterialPropertyType<LocalToWorld>(    "unity_ObjectToWorld", 4 * 4 * 3);
-            RegisterMaterialPropertyType<WorldToLocal_Tag>("unity_WorldToObject", overrideTypeSizeGPU: 4 * 4 * 3);
-#else
-            RegisterMaterialPropertyType<LocalToWorld>(    "unity_ObjectToWorld", 4 * 4 * 4);
-            RegisterMaterialPropertyType<WorldToLocal_Tag>("unity_WorldToObject", 4 * 4 * 4);
-#endif
-
-            // Ifdef guard registering types that might not exist if V2 is disabled.
-
-            // Explicitly use a default of all ones for probe occlusion, so stuff doesn't render as black if this isn't set.
-            RegisterMaterialPropertyType<BuiltinMaterialPropertyUnity_ProbesOcclusion>(
-                "unity_ProbesOcclusion",
-                defaultValue: new float4(1, 1, 1, 1));
-            RegisterSharedBuiltin("unity_SHAr", (int) m_SharedAmbientProbeAllocation.begin + SHProperties.kOffsetOfSHAr);
-            RegisterSharedBuiltin("unity_SHAg", (int) m_SharedAmbientProbeAllocation.begin + SHProperties.kOffsetOfSHAg);
-            RegisterSharedBuiltin("unity_SHAb", (int) m_SharedAmbientProbeAllocation.begin + SHProperties.kOffsetOfSHAb);
-            RegisterSharedBuiltin("unity_SHBr", (int) m_SharedAmbientProbeAllocation.begin + SHProperties.kOffsetOfSHBr);
-            RegisterSharedBuiltin("unity_SHBg", (int) m_SharedAmbientProbeAllocation.begin + SHProperties.kOffsetOfSHBg);
-            RegisterSharedBuiltin("unity_SHBb", (int) m_SharedAmbientProbeAllocation.begin + SHProperties.kOffsetOfSHBb);
-            RegisterSharedBuiltin("unity_SHC",  (int) m_SharedAmbientProbeAllocation.begin + SHProperties.kOffsetOfSHC);
-
-            foreach (var typeInfo in TypeManager.AllTypes)
-            {
-                var type = typeInfo.Type;
-
-                bool isComponent       = typeof(IComponentData).IsAssignableFrom(type);
-                bool isSharedComponent = typeof(ISharedComponentData).IsAssignableFrom(type);
-                if (isComponent || isSharedComponent)
-                {
-                    var attributes = type.GetCustomAttributes(typeof(MaterialPropertyAttribute), false);
-                    if (attributes.Length > 0)
-                    {
-                        var propertyAttr = (MaterialPropertyAttribute)attributes[0];
-
-                        if (isSharedComponent)
-                        {
-                            Debug.Assert(typeof(IHybridSharedComponentFloat4Override).IsAssignableFrom(type),
-                                         $"Hybrid Renderer ISharedComponentData overrides must implement IHybridSharedComponentOverride. Type \"{type.Name}\" does not.");
-                            Debug.Assert(propertyAttr.Format == MaterialPropertyFormat.Float4,
-                                         $"Hybrid Renderer ISharedComponentData overrides must have format Float4. Type \"{type.Name}\" had format {propertyAttr.Format} instead.");
-                        }
-
-                        RegisterMaterialPropertyType(type, propertyAttr.Name, propertyAttr.OverrideSizeGPU);
-                    }
-                }
-            }
-
-            m_GPUPersistentInstanceData = new ComputeBuffer(
-                (int)m_PersistentInstanceDataSize / 4,
-                4,
-                ComputeBufferType.Raw);
-            m_GPUUploader = new SparseUploader(m_GPUPersistentInstanceData, kGPUUploaderChunkSize);
-
-#if USE_UNITY_OCCLUSION
-            m_OcclusionCulling = new OcclusionCulling();
-            m_OcclusionCulling.Create(EntityManager);
-#endif
-
-            m_FirstFrameAfterInit = true;
-
-            // Hybrid Renderer cannot use the internal error shader because it doesn't support
-            // DOTS instancing, but we can check if it's set as a fallback, and use a supported
-            // error shader instead.
-
-            m_BuiltinErrorShader = Shader.Find("Hidden/InternalErrorShader");
-#if UNITY_EDITOR
-            m_ShaderHasCompileErrors = new Dictionary<Shader, bool>();
-#endif
-
-            Shader hybridErrorShader = null;
-
-#if HDRP_9_0_0_OR_NEWER
-            hybridErrorShader = Shader.Find("Hidden/HDRP/MaterialError");
-#endif
-
-#if URP_9_0_0_OR_NEWER
-            hybridErrorShader = Shader.Find("Hidden/Universal Render Pipeline/MaterialError");
-#endif
-
-            // TODO: What about custom SRPs? Is it enough to just throw an error, or should
-            // we search for a custom shader with a specific name?
-
-            if (hybridErrorShader != null)
-                m_ErrorMaterial = new Material(hybridErrorShader);
-        }
-
         private void RegisterSharedBuiltin(string propertyName, int sharedBuiltinOffset)
         {
             int nameID                               = Shader.PropertyToID(propertyName);
@@ -869,7 +704,7 @@ namespace Latios.UnityReplacements
                 int blitSize = math.min(sizeBytes, size4x4);
                 var desc     = new DefaultValueBlitDescriptor
                 {
-                    DestinationOffset = (uint) heapBlock.begin + (uint)offset,
+                    DestinationOffset = (uint)heapBlock.begin + (uint)offset,
                     ValueSizeBytes    = (uint)blitSize,
                     Count             = 1,
                 };
@@ -989,14 +824,6 @@ namespace Latios.UnityReplacements
             s_TypeToPropertyMappings.Clear();
         }
 
-        protected override void OnDestroy()
-        {
-            if (!Enabled)
-                return;
-            CompleteJobs();
-            Dispose();
-        }
-
         bool HasShaderReflectionChanged
         {
             get
@@ -1056,40 +883,6 @@ namespace Latios.UnityReplacements
             Debug.Log(
                 $"Latios Hybrid Renderer V2 active, MaterialProperty component type count {m_ComponentTypeCache.UsedTypeCount} / {ComponentTypeCache.BurstCompatibleTypeArray.kMaxTypes}");
 #endif
-        }
-
-        protected override void OnUpdate()
-        {
-            if (!s_HybridRendererEnabled)
-                return;
-
-            World.GetExistingSystem<HybridRendererSystem>().Enabled = false;
-            m_firstCull                                             = true;
-
-            Profiler.BeginSample("CompleteJobs");
-            Dependency.Complete();  // #todo
-            CompleteJobs();
-            Profiler.EndSample();
-
-            var done = new JobHandle();
-            try
-            {
-                Profiler.BeginSample("UpdateHybridV2Batches");
-                done = UpdateHybridV2Batches(Dependency);
-                Profiler.EndSample();
-
-                Profiler.BeginSample("EndUpdate");
-                EndUpdate();
-                Profiler.EndSample();
-            }
-            finally
-            {
-                m_GPUUploader.FrameCleanup();
-            }
-
-            HybridEditorTools.EndFrame();
-
-            Dependency = done;
         }
 
         private void ResetIds()
@@ -1214,11 +1007,6 @@ namespace Latios.UnityReplacements
             m_GPUUploader.Dispose();
             m_GPUPersistentInstanceData.Dispose();
 
-#if UNITY_EDITOR
-            UnsafeUtility.Free(m_CullingStats, Allocator.Persistent);
-
-            m_CullingStats = null;
-#endif
             m_BatchRendererGroup.Dispose();
             m_MaterialPropertyTypes.Dispose();
             m_MaterialPropertyTypesShared.Dispose();
@@ -1271,176 +1059,6 @@ namespace Latios.UnityReplacements
             m_ArchetypeSharedOverrideInfos.Dispose();
         }
 
-        #endregion
-
-        [BurstCompile]
-        internal struct ClassifyNewChunksJob : IJobChunk
-        {
-            [ReadOnly] public ComponentTypeHandle<ChunkHeader>     ChunkHeader;
-            [ReadOnly] public ComponentTypeHandle<HybridChunkInfo> HybridChunkInfo;
-
-            [NativeDisableParallelForRestriction]
-            public NativeArray<ArchetypeChunk> NewChunks;
-            [NativeDisableParallelForRestriction]
-            public NativeArray<int> NumNewChunks;
-
-            public void Execute(ArchetypeChunk metaChunk, int chunkIndex, int firstEntityIndex)
-            {
-                var chunkHeaders     = metaChunk.GetNativeArray(ChunkHeader);
-                var hybridChunkInfos = metaChunk.GetNativeArray(HybridChunkInfo);
-
-                for (int i = 0; i < metaChunk.Count; ++i)
-                {
-                    var chunkInfo   = hybridChunkInfos[i];
-                    var chunkHeader = chunkHeaders[i];
-
-                    if (ShouldCountAsNewChunk(chunkInfo, chunkHeader.ArchetypeChunk))
-                    {
-                        ClassifyNewChunk(chunkHeader.ArchetypeChunk);
-                    }
-                }
-            }
-
-            bool ShouldCountAsNewChunk(in HybridChunkInfo chunkInfo, in ArchetypeChunk chunk)
-            {
-                return !chunkInfo.Valid && !chunk.Archetype.Prefab && !chunk.Archetype.Disabled;
-            }
-
-            public unsafe void ClassifyNewChunk(ArchetypeChunk chunk)
-            {
-                int* numNewChunks = (int*)NumNewChunks.GetUnsafePtr();
-                int  iPlus1       = System.Threading.Interlocked.Add(ref numNewChunks[0], 1);
-                int  i            = iPlus1 - 1;  // C# Interlocked semantics are weird
-                Debug.Assert(i < NewChunks.Length, "Out of space in the NewChunks buffer");
-                NewChunks[i] = chunk;
-            }
-        }
-
-        [BurstCompile]
-        private struct UpdateOldHybridChunksJob : IJobChunk
-        {
-            [ReadOnly] public ComponentTypeHandle<Kinemation.ChunkComputeDeformMemoryMetadata> computeDeformHandle;
-
-            public ComponentTypeHandle<HybridChunkInfo>                   HybridChunkInfo;
-            [ReadOnly] public ComponentTypeHandle<ChunkWorldRenderBounds> ChunkWorldRenderBounds;
-            [ReadOnly] public ComponentTypeHandle<ChunkHeader>            ChunkHeader;
-            [ReadOnly] public ComponentTypeHandle<LocalToWorld>           LocalToWorld;
-            [ReadOnly] public ComponentTypeHandle<LODRange>               LodRange;
-            [ReadOnly] public ComponentTypeHandle<RootLODRange>           RootLodRange;
-            public HybridChunkUpdater                                     HybridChunkUpdater;
-
-            public void Execute(ArchetypeChunk metaChunk, int chunkIndex, int firstEntityIndex)
-            {
-                // metaChunk is the chunk which contains the meta entities (= entities holding the chunk components) for the actual chunks
-
-                var hybridChunkInfos = metaChunk.GetNativeArray(HybridChunkInfo);
-                var chunkHeaders     = metaChunk.GetNativeArray(ChunkHeader);
-                var chunkBoundsArray = metaChunk.GetNativeArray(ChunkWorldRenderBounds);
-
-                bool hasComputeDeform = metaChunk.Has(computeDeformHandle);
-
-                for (int i = 0; i < metaChunk.Count; ++i)
-                {
-                    var chunkInfo   = hybridChunkInfos[i];
-                    var chunkHeader = chunkHeaders[i];
-
-                    var chunk = chunkHeader.ArchetypeChunk;
-
-                    ChunkWorldRenderBounds chunkBounds = chunkBoundsArray[i];
-                    if (hasComputeDeform)
-                        chunkBounds = new ChunkWorldRenderBounds { Value = new AABB { Center = 0f, Extents = 1e9f } };
-
-                    bool isNewChunk         = !chunkInfo.Valid;
-                    bool localToWorldChange = chunk.DidChange(LocalToWorld, HybridChunkUpdater.LastSystemVersion);
-
-                    // When LOD ranges change, we must reset the movement grace to avoid using stale data
-                    bool lodRangeChange =
-                        chunk.DidOrderChange(HybridChunkUpdater.LastSystemVersion) |
-                        chunk.DidChange(LodRange, HybridChunkUpdater.LastSystemVersion) |
-                        chunk.DidChange(RootLodRange, HybridChunkUpdater.LastSystemVersion);
-
-                    if (lodRangeChange)
-                        chunkInfo.CullingData.MovementGraceFixed16 = 0;
-
-                    // Don't mark new chunks for updates here, they will be handled later when they have valid batch indices.
-                    if (!isNewChunk)
-                        HybridChunkUpdater.MarkBatchForUpdates(chunkInfo.InternalIndex, localToWorldChange);
-
-                    HybridChunkUpdater.ProcessChunk(ref chunkInfo, chunk, chunkBounds);
-                    hybridChunkInfos[i] = chunkInfo;
-                }
-
-                HybridChunkUpdater.FinishExecute();
-            }
-        }
-
-        [BurstCompile]
-        private struct UpdateNewHybridChunksJob : IJobParallelFor
-        {
-            [ReadOnly] public ComponentTypeHandle<Kinemation.ChunkComputeDeformMemoryMetadata> chunkComputeDeformHandle;
-            public ComponentTypeHandle<HybridChunkInfo>                                        HybridChunkInfo;
-            [ReadOnly] public ComponentTypeHandle<ChunkWorldRenderBounds>                      ChunkWorldRenderBounds;
-
-            public NativeArray<ArchetypeChunk> NewChunks;
-            public HybridChunkUpdater          HybridChunkUpdater;
-
-            public void Execute(int index)
-            {
-                var chunk     = NewChunks[index];
-                var chunkInfo = chunk.GetChunkComponentData(HybridChunkInfo);
-
-                ChunkWorldRenderBounds chunkBounds = chunk.GetChunkComponentData(ChunkWorldRenderBounds);
-                if (chunk.HasChunkComponent(chunkComputeDeformHandle))
-                    chunkBounds = new ChunkWorldRenderBounds { Value = new AABB { Center = 0f, Extents = 1e9f } };
-
-                Debug.Assert(chunkInfo.Valid, "Attempted to process a chunk with uninitialized Hybrid chunk info");
-                HybridChunkUpdater.MarkBatchForUpdates(chunkInfo.InternalIndex, true);
-                HybridChunkUpdater.ProcessValidChunk(ref chunkInfo, chunk, chunkBounds.Value, true);
-                chunk.SetChunkComponentData(HybridChunkInfo, chunkInfo);
-                HybridChunkUpdater.FinishExecute();
-            }
-        }
-
-        bool                                            m_firstCull = true;
-        Kinemation.Systems.KinemationCullingSuperSystem m_cullingSuperSystem;
-
-        public JobHandle OnPerformCulling(BatchRendererGroup rendererGroup, BatchCullingContext cullingContext)
-        {
-            var batchCount = cullingContext.batchVisibility.Length;
-            if (batchCount == 0)
-                return new JobHandle();
-            ;
-
-            var brgCullingContext                          = new Kinemation.BrgCullingContext();
-            brgCullingContext.rendererGroup                = rendererGroup;
-            brgCullingContext.cullingContext               = cullingContext;
-            brgCullingContext.internalToExternalMappingIds = m_InternalToExternalIds;
-            brgCullingContext.firstCull                    = m_firstCull;
-
-#if UNITY_EDITOR
-            brgCullingContext.cullingStats          = m_CullingStats;
-            brgCullingContext.maxCameraMoveDistance = 0f;
-            if (m_firstCull)
-                UnsafeUtility.MemClear(m_CullingStats, sizeof(CullingStats) * JobsUtility.MaxJobThreadCount);
-#endif
-
-            m_cullingSuperSystem.worldBlackboardEntity.SetCollectionComponentAndDisposeOld(brgCullingContext);
-            m_cullingSuperSystem.Update();
-
-            brgCullingContext = m_cullingSuperSystem.worldBlackboardEntity.GetCollectionComponent<Kinemation.BrgCullingContext>(false, out var finalHandle);
-            // Clear the dependency since we are not reading a container.
-            m_cullingSuperSystem.worldBlackboardEntity.UpdateJobDependency<Kinemation.BrgCullingContext>(finalHandle, true);
-
-#if UNITY_EDITOR
-
-            m_CamMoveDistance = brgCullingContext.maxCameraMoveDistance;
-#endif
-
-            m_firstCull = false;
-            return finalHandle;
-        }
-
-        #region OriginalB
 #if UNITY_ANDROID && !UNITY_64
         // There is a crash bug on ARMv7 potentially related to a compiler bug in the tool chain.
         // We will have to leave this function without optimizations on that platform.
@@ -1567,7 +1185,6 @@ namespace Latios.UnityReplacements
 
             var updateOldJob = new UpdateOldHybridChunksJob
             {
-                computeDeformHandle    = GetComponentTypeHandle<Kinemation.ChunkComputeDeformMemoryMetadata>(true),
                 HybridChunkInfo        = hybridRenderedChunkType,
                 ChunkWorldRenderBounds = chunkWorldRenderBoundsRO,
                 ChunkHeader            = chunkHeadersRO,
@@ -1597,11 +1214,10 @@ namespace Latios.UnityReplacements
 
                 var updateNewChunksJob = new UpdateNewHybridChunksJob
                 {
-                    chunkComputeDeformHandle = GetComponentTypeHandle<Kinemation.ChunkComputeDeformMemoryMetadata>(true),
-                    NewChunks                = newChunks,
-                    HybridChunkInfo          = hybridRenderedChunkType,
-                    ChunkWorldRenderBounds   = chunkWorldRenderBoundsRO,
-                    HybridChunkUpdater       = hybridChunkUpdater,
+                    NewChunks              = newChunks,
+                    HybridChunkInfo        = hybridRenderedChunkType,
+                    ChunkWorldRenderBounds = chunkWorldRenderBoundsRO,
+                    HybridChunkUpdater     = hybridChunkUpdater,
                 };
 
 #if DEBUG_LOG_INVALID_CHUNKS
@@ -1725,21 +1341,6 @@ namespace Latios.UnityReplacements
 #endif
 
             return numRemoved;
-        }
-
-        struct BatchUpdateStatistics
-        {
-            // Ifdef struct contents to avoid warnings when ifdef is disabled.
-#if DEBUG_LOG_BATCH_UPDATES
-            public int BatchesWithChangedBounds;
-            public int BatchesNeedingMotionVectors;
-            public int BatchesWithoutMotionVectors;
-
-            public bool NonZero =>
-            BatchesWithChangedBounds > 0 ||
-            BatchesNeedingMotionVectors > 0 ||
-            BatchesWithoutMotionVectors > 0;
-#endif
         }
 
         private void UpdateBatchProperties(
@@ -2774,15 +2375,6 @@ namespace Latios.UnityReplacements
             }
         }
 
-        private struct CullingComponentTypes
-        {
-            public ComponentTypeHandle<RootLODRange>               RootLODRanges;
-            public ComponentTypeHandle<RootLODWorldReferencePoint> RootLODWorldReferencePoints;
-            public ComponentTypeHandle<LODRange>                   LODRanges;
-            public ComponentTypeHandle<LODWorldReferencePoint>     LODWorldReferencePoints;
-            public ComponentTypeHandle<PerInstanceCullingTag>      PerInstanceCullingTag;
-        }
-
         private void UploadAllBlits()
         {
             UploadBlitJob uploadJob = new UploadBlitJob()
@@ -2794,24 +2386,6 @@ namespace Latios.UnityReplacements
             JobHandle handle = uploadJob.Schedule(m_DefaultValueBlits.Length, 1);
             handle.Complete();
             m_DefaultValueBlits.Clear();
-        }
-
-        [BurstCompile]
-        private struct AABBClearJob : IJobParallelFor
-        {
-            [NativeDisableParallelForRestriction] public NativeList<float> BatchAABBs;
-            public void Execute(int index)
-            {
-                int aabbIndex = (int)(((uint)index) * HybridChunkUpdater.kFloatsPerAABB);
-                Debug.Assert(aabbIndex < BatchAABBs.Length, "AABBIndex is out of BatchAABBs bounds");
-
-                BatchAABBs[aabbIndex + HybridChunkUpdater.kMinX] = float.MaxValue;
-                BatchAABBs[aabbIndex + HybridChunkUpdater.kMinY] = float.MaxValue;
-                BatchAABBs[aabbIndex + HybridChunkUpdater.kMinZ] = float.MaxValue;
-                BatchAABBs[aabbIndex + HybridChunkUpdater.kMaxX] = float.MinValue;
-                BatchAABBs[aabbIndex + HybridChunkUpdater.kMaxY] = float.MinValue;
-                BatchAABBs[aabbIndex + HybridChunkUpdater.kMaxZ] = float.MinValue;
-            }
         }
 
         // Return a JobHandle that completes when the AABBs are clear. If the job
@@ -2941,6 +2515,398 @@ namespace Latios.UnityReplacements
             }
 #endif
             m_GlobalAmbientProbe = globalAmbientProbe;
+        }
+
+        #endregion
+
+        #region Callbacks
+        protected override void OnCreate()
+        {
+            World.GetExistingSystem<HybridRendererSystem>().Enabled = false;
+
+            // If all graphics rendering has been disabled, early out from all HR functionality
+#if HYBRID_RENDERER_DISABLED
+            s_HybridRendererEnabled = false;
+#else
+            s_HybridRendererEnabled = HybridUtils.IsHybridSupportedOnSystem();
+#endif
+            if (!s_HybridRendererEnabled)
+            {
+#if !DISABLE_HYBRID_V2_SRP_LOGS
+                Debug.Log("No SRP present, no compute shader support, or running with -nographics. Hybrid Renderer disabled");
+#endif
+                return;
+            }
+            m_cullingSuperSystem = World.GetOrCreateSystem<KinemationCullingSuperSystem>();
+            worldBlackboardEntity.AddComponent<CullingContext>();
+            worldBlackboardEntity.AddBuffer<CullingPlane>();
+
+            m_PersistentInstanceDataSize = kGPUBufferSizeInitial;
+
+            m_HybridRenderedQuery = GetEntityQuery(HybridUtils.GetHybridRenderedQueryDesc());
+
+            m_BatchRendererGroup = new BatchRendererGroup(OnPerformCulling);
+
+            m_GPUPersistentAllocator = new HeapAllocator(kMaxGPUAllocatorMemory, 16);
+            m_ChunkMetadataAllocator = new HeapAllocator(kMaxChunkMetadata);
+
+            m_BatchInfos       = NewNativeListResized<BatchInfo>(kInitialMaxBatchCount, Allocator.Persistent);
+            m_BatchMotionInfos = NewNativeListResized<BatchMotionInfo>(kInitialMaxBatchCount, Allocator.Persistent);
+#if USE_PICKING_MATRICES
+            m_BatchPickingMatrices = NewNativeListResized<IntPtr>(kInitialMaxBatchCount, Allocator.Persistent);
+#endif
+            m_ChunkProperties              = new NativeArray<ChunkProperty>(kMaxChunkMetadata, Allocator.Persistent);
+            m_ExistingBatchInternalIndices = new NativeHashMap<int, int>(128, Allocator.Persistent);
+            m_ComponentTypeCache           = new ComponentTypeCache(128);
+
+            m_BatchAABBs = NewNativeListResized<float>(kInitialMaxBatchCount * (int)HybridChunkUpdater.kFloatsPerAABB, Allocator.Persistent);
+
+            m_DefaultValueBlits = new NativeList<DefaultValueBlitDescriptor>(Allocator.Persistent);
+
+            m_AABBsCleared    = new JobHandle();
+            m_AABBClearKicked = false;
+
+            // Globally allocate a single zero matrix and reuse that for all default values that are pure zero
+            m_SharedZeroAllocation = m_GPUPersistentAllocator.Allocate((ulong)sizeof(float4x4));
+            Debug.Assert(!m_SharedZeroAllocation.Empty, "Allocation of constant-zero data failed");
+            // Make sure the global zero is actually zero.
+            m_DefaultValueBlits.Add(new DefaultValueBlitDescriptor
+            {
+                DefaultValue      = float4x4.zero,
+                DestinationOffset = (uint)m_SharedZeroAllocation.begin,
+                ValueSizeBytes    = (uint)sizeof(float4x4),
+                Count             = 1,
+            });
+
+            m_SharedAmbientProbeAllocation = m_GPUPersistentAllocator.Allocate((ulong)UnsafeUtility.SizeOf<SHProperties>());
+            Debug.Assert(!m_SharedAmbientProbeAllocation.Empty, "Allocation of the global ambient probe failed");
+            UpdateGlobalAmbientProbe(new SHProperties());
+
+            ResetIds();
+
+            m_MetaEntitiesForHybridRenderableChunks = GetEntityQuery(
+                new EntityQueryDesc
+
+            {
+                All = new[]
+                {
+                    ComponentType.ReadWrite<HybridChunkInfo>(),
+                    ComponentType.ReadOnly<ChunkHeader>(),
+                },
+            });
+
+            // Collect all components with [MaterialProperty] attribute
+            m_MaterialPropertyTypes              = new NativeMultiHashMap<int, MaterialPropertyType>(256, Allocator.Persistent);
+            m_MaterialPropertyTypesShared        = new NativeMultiHashMap<int, MaterialPropertyType>(256, Allocator.Persistent);
+            m_SharedComponentOverrideTypeIndices = new NativeHashSet<int>(256, Allocator.Persistent);
+            m_MaterialPropertyNames              = new Dictionary<int, string>();
+            m_MaterialPropertyTypeNames          = new Dictionary<int, string>();
+            m_MaterialPropertyDefaultValues      = new Dictionary<int, float4x4>();
+            m_MaterialPropertySharedBuiltins     = new Dictionary<int, int>();
+            m_ArchetypeSharedOverrideInfos       =
+                new NativeHashMap<EntityArchetype, SharedComponentOverridesInfo>(256, Allocator.Persistent);
+
+            // Some hardcoded mappings to avoid dependencies to Hybrid from DOTS
+#if SRP_10_0_0_OR_NEWER
+            RegisterMaterialPropertyType<LocalToWorld>(    "unity_ObjectToWorld", 4 * 4 * 3);
+            RegisterMaterialPropertyType<WorldToLocal_Tag>("unity_WorldToObject", overrideTypeSizeGPU: 4 * 4 * 3);
+#else
+            RegisterMaterialPropertyType<LocalToWorld>(    "unity_ObjectToWorld", 4 * 4 * 4);
+            RegisterMaterialPropertyType<WorldToLocal_Tag>("unity_WorldToObject", 4 * 4 * 4);
+#endif
+
+            // Ifdef guard registering types that might not exist if V2 is disabled.
+
+            // Explicitly use a default of all ones for probe occlusion, so stuff doesn't render as black if this isn't set.
+            RegisterMaterialPropertyType<BuiltinMaterialPropertyUnity_ProbesOcclusion>(
+                "unity_ProbesOcclusion",
+                defaultValue: new float4(1, 1, 1, 1));
+            RegisterSharedBuiltin("unity_SHAr", (int) m_SharedAmbientProbeAllocation.begin + SHProperties.kOffsetOfSHAr);
+            RegisterSharedBuiltin("unity_SHAg", (int) m_SharedAmbientProbeAllocation.begin + SHProperties.kOffsetOfSHAg);
+            RegisterSharedBuiltin("unity_SHAb", (int) m_SharedAmbientProbeAllocation.begin + SHProperties.kOffsetOfSHAb);
+            RegisterSharedBuiltin("unity_SHBr", (int) m_SharedAmbientProbeAllocation.begin + SHProperties.kOffsetOfSHBr);
+            RegisterSharedBuiltin("unity_SHBg", (int) m_SharedAmbientProbeAllocation.begin + SHProperties.kOffsetOfSHBg);
+            RegisterSharedBuiltin("unity_SHBb", (int) m_SharedAmbientProbeAllocation.begin + SHProperties.kOffsetOfSHBb);
+            RegisterSharedBuiltin("unity_SHC",  (int) m_SharedAmbientProbeAllocation.begin + SHProperties.kOffsetOfSHC);
+
+            foreach (var typeInfo in TypeManager.AllTypes)
+            {
+                var type = typeInfo.Type;
+
+                bool isComponent       = typeof(IComponentData).IsAssignableFrom(type);
+                bool isSharedComponent = typeof(ISharedComponentData).IsAssignableFrom(type);
+                if (isComponent || isSharedComponent)
+                {
+                    var attributes = type.GetCustomAttributes(typeof(MaterialPropertyAttribute), false);
+                    if (attributes.Length > 0)
+                    {
+                        var propertyAttr = (MaterialPropertyAttribute)attributes[0];
+
+                        if (isSharedComponent)
+                        {
+                            Debug.Assert(typeof(IHybridSharedComponentFloat4Override).IsAssignableFrom(type),
+                                         $"Hybrid Renderer ISharedComponentData overrides must implement IHybridSharedComponentOverride. Type \"{type.Name}\" does not.");
+                            Debug.Assert(propertyAttr.Format == MaterialPropertyFormat.Float4,
+                                         $"Hybrid Renderer ISharedComponentData overrides must have format Float4. Type \"{type.Name}\" had format {propertyAttr.Format} instead.");
+                        }
+
+                        RegisterMaterialPropertyType(type, propertyAttr.Name, propertyAttr.OverrideSizeGPU);
+                    }
+                }
+            }
+
+            m_GPUPersistentInstanceData = new ComputeBuffer(
+                (int)m_PersistentInstanceDataSize / 4,
+                4,
+                ComputeBufferType.Raw);
+            m_GPUUploader = new SparseUploader(m_GPUPersistentInstanceData, kGPUUploaderChunkSize);
+
+#if USE_UNITY_OCCLUSION
+            m_OcclusionCulling = new OcclusionCulling();
+            m_OcclusionCulling.Create(EntityManager);
+#endif
+
+            m_FirstFrameAfterInit = true;
+
+            // Hybrid Renderer cannot use the internal error shader because it doesn't support
+            // DOTS instancing, but we can check if it's set as a fallback, and use a supported
+            // error shader instead.
+
+            m_BuiltinErrorShader = Shader.Find("Hidden/InternalErrorShader");
+#if UNITY_EDITOR
+            m_ShaderHasCompileErrors = new Dictionary<Shader, bool>();
+#endif
+
+            Shader hybridErrorShader = null;
+
+#if HDRP_9_0_0_OR_NEWER
+            hybridErrorShader = Shader.Find("Hidden/HDRP/MaterialError");
+#endif
+
+#if URP_9_0_0_OR_NEWER
+            hybridErrorShader = Shader.Find("Hidden/Universal Render Pipeline/MaterialError");
+#endif
+
+            // TODO: What about custom SRPs? Is it enough to just throw an error, or should
+            // we search for a custom shader with a specific name?
+
+            if (hybridErrorShader != null)
+                m_ErrorMaterial = new Material(hybridErrorShader);
+        }
+
+        protected override void OnDestroy()
+        {
+            if (!Enabled)
+                return;
+            CompleteJobs();
+            Dispose();
+        }
+
+        protected override void OnUpdate()
+        {
+            if (!s_HybridRendererEnabled)
+                return;
+
+            World.GetExistingSystem<HybridRendererSystem>().Enabled = false;
+            m_cullIndexThisFrame                                    = 0;
+
+            Profiler.BeginSample("CompleteJobs");
+            Dependency.Complete();  // #todo
+            CompleteJobs();
+            Profiler.EndSample();
+
+            var done = new JobHandle();
+            try
+            {
+                Profiler.BeginSample("UpdateHybridV2Batches");
+                done = UpdateHybridV2Batches(Dependency);
+                Profiler.EndSample();
+
+                Profiler.BeginSample("EndUpdate");
+                EndUpdate();
+                Profiler.EndSample();
+            }
+            finally
+            {
+                m_GPUUploader.FrameCleanup();
+            }
+
+            HybridEditorTools.EndFrame();
+
+            Dependency = done;
+        }
+
+        public JobHandle OnPerformCulling(BatchRendererGroup rendererGroup, BatchCullingContext batchCullingContext)
+        {
+            var batchCount = batchCullingContext.batchVisibility.Length;
+            if (batchCount == 0)
+                return new JobHandle();
+
+            var exposedCullingContext = new CullingContext
+            {
+                cullingMatrix      = batchCullingContext.cullingMatrix,
+                cullIndexThisFrame = m_cullIndexThisFrame,
+                lodParameters      = batchCullingContext.lodParameters,
+                nearPlane          = batchCullingContext.nearPlane
+            };
+            worldBlackboardEntity.SetComponentData(exposedCullingContext);
+            worldBlackboardEntity.GetBuffer<CullingPlane>().Reinterpret<Plane>().CopyFrom(batchCullingContext.cullingPlanes);
+
+            var brgCullingContext = new BrgCullingContext
+            {
+                cullingContext               = batchCullingContext,
+                internalToExternalMappingIds = m_InternalToExternalIds
+            };
+
+            worldBlackboardEntity.SetCollectionComponentAndDisposeOld(brgCullingContext);
+            m_cullingSuperSystem.Update();
+
+            brgCullingContext = m_cullingSuperSystem.worldBlackboardEntity.GetCollectionComponent<BrgCullingContext>(false, out var finalHandle);
+            // Clear the dependency since we are not reading a container.
+            m_cullingSuperSystem.worldBlackboardEntity.UpdateJobDependency<BrgCullingContext>(finalHandle, true);
+
+            m_cullIndexThisFrame++;
+            return finalHandle;
+        }
+
+        #endregion
+
+        #region Jobs
+        [BurstCompile]
+        internal struct ClassifyNewChunksJob : IJobChunk
+        {
+            [ReadOnly] public ComponentTypeHandle<ChunkHeader>     ChunkHeader;
+            [ReadOnly] public ComponentTypeHandle<HybridChunkInfo> HybridChunkInfo;
+
+            [NativeDisableParallelForRestriction]
+            public NativeArray<ArchetypeChunk> NewChunks;
+            [NativeDisableParallelForRestriction]
+            public NativeArray<int> NumNewChunks;
+
+            public void Execute(ArchetypeChunk metaChunk, int chunkIndex, int firstEntityIndex)
+            {
+                var chunkHeaders     = metaChunk.GetNativeArray(ChunkHeader);
+                var hybridChunkInfos = metaChunk.GetNativeArray(HybridChunkInfo);
+
+                for (int i = 0; i < metaChunk.Count; ++i)
+                {
+                    var chunkInfo   = hybridChunkInfos[i];
+                    var chunkHeader = chunkHeaders[i];
+
+                    if (ShouldCountAsNewChunk(chunkInfo, chunkHeader.ArchetypeChunk))
+                    {
+                        ClassifyNewChunk(chunkHeader.ArchetypeChunk);
+                    }
+                }
+            }
+
+            bool ShouldCountAsNewChunk(in HybridChunkInfo chunkInfo, in ArchetypeChunk chunk)
+            {
+                return !chunkInfo.Valid && !chunk.Archetype.Prefab && !chunk.Archetype.Disabled;
+            }
+
+            public unsafe void ClassifyNewChunk(ArchetypeChunk chunk)
+            {
+                int* numNewChunks = (int*)NumNewChunks.GetUnsafePtr();
+                int  iPlus1       = System.Threading.Interlocked.Add(ref numNewChunks[0], 1);
+                int  i            = iPlus1 - 1;  // C# Interlocked semantics are weird
+                Debug.Assert(i < NewChunks.Length, "Out of space in the NewChunks buffer");
+                NewChunks[i] = chunk;
+            }
+        }
+
+        [BurstCompile]
+        private struct UpdateOldHybridChunksJob : IJobChunk
+        {
+            public ComponentTypeHandle<HybridChunkInfo>                   HybridChunkInfo;
+            [ReadOnly] public ComponentTypeHandle<ChunkWorldRenderBounds> ChunkWorldRenderBounds;
+            [ReadOnly] public ComponentTypeHandle<ChunkHeader>            ChunkHeader;
+            [ReadOnly] public ComponentTypeHandle<LocalToWorld>           LocalToWorld;
+            [ReadOnly] public ComponentTypeHandle<LODRange>               LodRange;
+            [ReadOnly] public ComponentTypeHandle<RootLODRange>           RootLodRange;
+            public HybridChunkUpdater                                     HybridChunkUpdater;
+
+            public void Execute(ArchetypeChunk metaChunk, int chunkIndex, int firstEntityIndex)
+            {
+                // metaChunk is the chunk which contains the meta entities (= entities holding the chunk components) for the actual chunks
+
+                var hybridChunkInfos = metaChunk.GetNativeArray(HybridChunkInfo);
+                var chunkHeaders     = metaChunk.GetNativeArray(ChunkHeader);
+                var chunkBoundsArray = metaChunk.GetNativeArray(ChunkWorldRenderBounds);
+
+                for (int i = 0; i < metaChunk.Count; ++i)
+                {
+                    var chunkInfo   = hybridChunkInfos[i];
+                    var chunkHeader = chunkHeaders[i];
+
+                    var chunk = chunkHeader.ArchetypeChunk;
+
+                    ChunkWorldRenderBounds chunkBounds = chunkBoundsArray[i];
+
+                    bool isNewChunk         = !chunkInfo.Valid;
+                    bool localToWorldChange = chunk.DidChange(LocalToWorld, HybridChunkUpdater.LastSystemVersion);
+
+                    // When LOD ranges change, we must reset the movement grace to avoid using stale data
+                    bool lodRangeChange =
+                        chunk.DidOrderChange(HybridChunkUpdater.LastSystemVersion) |
+                        chunk.DidChange(LodRange, HybridChunkUpdater.LastSystemVersion) |
+                        chunk.DidChange(RootLodRange, HybridChunkUpdater.LastSystemVersion);
+
+                    if (lodRangeChange)
+                        chunkInfo.CullingData.MovementGraceFixed16 = 0;
+
+                    // Don't mark new chunks for updates here, they will be handled later when they have valid batch indices.
+                    if (!isNewChunk)
+                        HybridChunkUpdater.MarkBatchForUpdates(chunkInfo.InternalIndex, localToWorldChange);
+
+                    HybridChunkUpdater.ProcessChunk(ref chunkInfo, chunk, chunkBounds);
+                    hybridChunkInfos[i] = chunkInfo;
+                }
+
+                HybridChunkUpdater.FinishExecute();
+            }
+        }
+
+        [BurstCompile]
+        private struct UpdateNewHybridChunksJob : IJobParallelFor
+        {
+            public ComponentTypeHandle<HybridChunkInfo>                   HybridChunkInfo;
+            [ReadOnly] public ComponentTypeHandle<ChunkWorldRenderBounds> ChunkWorldRenderBounds;
+
+            public NativeArray<ArchetypeChunk> NewChunks;
+            public HybridChunkUpdater          HybridChunkUpdater;
+
+            public void Execute(int index)
+            {
+                var chunk     = NewChunks[index];
+                var chunkInfo = chunk.GetChunkComponentData(HybridChunkInfo);
+
+                ChunkWorldRenderBounds chunkBounds = chunk.GetChunkComponentData(ChunkWorldRenderBounds);
+
+                Debug.Assert(chunkInfo.Valid, "Attempted to process a chunk with uninitialized Hybrid chunk info");
+                HybridChunkUpdater.MarkBatchForUpdates(chunkInfo.InternalIndex, true);
+                HybridChunkUpdater.ProcessValidChunk(ref chunkInfo, chunk, chunkBounds.Value, true);
+                chunk.SetChunkComponentData(HybridChunkInfo, chunkInfo);
+                HybridChunkUpdater.FinishExecute();
+            }
+        }
+
+        [BurstCompile]
+        private struct AABBClearJob : IJobParallelFor
+        {
+            [NativeDisableParallelForRestriction] public NativeList<float> BatchAABBs;
+            public void Execute(int index)
+            {
+                int aabbIndex = (int)(((uint)index) * HybridChunkUpdater.kFloatsPerAABB);
+                Debug.Assert(aabbIndex < BatchAABBs.Length, "AABBIndex is out of BatchAABBs bounds");
+
+                BatchAABBs[aabbIndex + HybridChunkUpdater.kMinX] = float.MaxValue;
+                BatchAABBs[aabbIndex + HybridChunkUpdater.kMinY] = float.MaxValue;
+                BatchAABBs[aabbIndex + HybridChunkUpdater.kMinZ] = float.MaxValue;
+                BatchAABBs[aabbIndex + HybridChunkUpdater.kMaxX] = float.MinValue;
+                BatchAABBs[aabbIndex + HybridChunkUpdater.kMaxY] = float.MinValue;
+                BatchAABBs[aabbIndex + HybridChunkUpdater.kMaxZ] = float.MinValue;
+            }
         }
         #endregion
     }

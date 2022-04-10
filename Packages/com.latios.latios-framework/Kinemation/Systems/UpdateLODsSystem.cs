@@ -51,8 +51,7 @@ namespace Latios.Kinemation.Systems
 
             var lodParams = LODGroupExtensions.CalculateLODParams(cullingContext.lodParameters);
 
-            int cullingPlaneCount = cullingContext.cullingPlanes.Length;
-            var planes            = FrustumPlanes.BuildSOAPlanePackets(cullingContext.cullingPlanes, Allocator.TempJob);
+            var planes = FrustumPlanes.BuildSOAPlanePackets(cullingContext.cullingPlanes, Allocator.TempJob);
 
             var  currentOrderVersion  = EntityManager.GetComponentOrderVersion<LODRange>();
             bool lodParamsMatchPrev   = lodParams.Equals(m_PrevLODParams);
@@ -63,9 +62,6 @@ namespace Latios.Kinemation.Systems
             {
                 float cameraMoveDistance      = math.length(m_PrevCameraPos - lodParams.cameraPos);
                 var   lodDistanceScaleChanged = lodParams.distanceScale != m_PrevLodDistanceScale;
-
-                // Record this separately in the editor for stats display
-                m_CamMoveDistance = cameraMoveDistance;
 
                 var selectLodEnabledJob = new SelectLodEnabled
                 {
@@ -84,9 +80,6 @@ namespace Latios.Kinemation.Systems
                         Fixed16CamDistance.FromFloatCeil(cameraMoveDistance * lodParams.distanceScale),
                     DistanceScale        = lodParams.distanceScale,
                     DistanceScaleChanged = lodDistanceScaleChanged,
-#if UNITY_EDITOR
-                    Stats = brgContext.cullingStats,
-#endif
                 };
 
                 Dependency = selectLodEnabledJob.ScheduleParallel(m_query, Dependency);
@@ -119,15 +112,6 @@ namespace Latios.Kinemation.Systems
             public ComponentTypeHandle<HybridChunkInfo>        HybridChunkInfo;
             [ReadOnly] public ComponentTypeHandle<ChunkHeader> ChunkHeader;
 
-#if UNITY_EDITOR
-            [NativeDisableUnsafePtrRestriction] public CullingStats* Stats;
-
-#pragma warning disable 649
-            [NativeSetThreadIndex] public int ThreadIndex;
-#pragma warning restore 649
-
-#endif
-
             public void Execute(ArchetypeChunk archetypeChunk, int chunkIndex)
             {
                 var hybridChunkInfoArray = archetypeChunk.GetNativeArray(HybridChunkInfo);
@@ -144,9 +128,6 @@ namespace Latios.Kinemation.Systems
 
                     var chunkOrderChanged = chunk.DidOrderChange(lastSystemVersion);
 
-#if UNITY_EDITOR
-                    Stats[ThreadIndex].Stats[CullingStats.kLodTotal]++;
-#endif
                     var internalBatchIndex = hybridChunkInfo.InternalIndex;
                     var chunkInstanceCount = chunk.Count;
                     var isOrtho            = LODParams.isOrtho;
@@ -158,9 +139,6 @@ namespace Latios.Kinemation.Systems
 
                     if (0 == (chunkCullingData.Flags & HybridChunkCullingData.kFlagHasLodData))
                     {
-#if UNITY_EDITOR
-                        Stats[ThreadIndex].Stats[CullingStats.kLodNoRequirements]++;
-#endif
                         chunkEntityLodEnabled.Enabled[0] = 0;
                         chunkEntityLodEnabled.Enabled[1] = 0;
                         for (int i = 0; i < chunkInstanceCount; ++i)
@@ -188,10 +166,6 @@ namespace Latios.Kinemation.Systems
                         {
                             chunkEntityLodEnabled.Enabled[0] = 0;
                             chunkEntityLodEnabled.Enabled[1] = 0;
-
-#if UNITY_EDITOR
-                            Stats[ThreadIndex].Stats[CullingStats.kLodChunksTested]++;
-#endif
 
                             var rootLODRanges          = chunk.GetNativeArray(RootLODRanges);
                             var rootLODReferencePoints = chunk.GetNativeArray(RootLODReferencePoints);
@@ -271,14 +245,6 @@ namespace Latios.Kinemation.Systems
                         }
                     }
 
-#if UNITY_EDITOR
-                    if (oldEntityLodEnabled.Enabled[0] != chunkEntityLodEnabled.Enabled[0] ||
-                        oldEntityLodEnabled.Enabled[1] != chunkEntityLodEnabled.Enabled[1])
-                    {
-                        Stats[ThreadIndex].Stats[CullingStats.kLodChanged]++;
-                    }
-#endif
-
                     chunkCullingData.InstanceLodEnableds = chunkEntityLodEnabled;
                     hybridChunkInfoArray[entityIndex]    = hybridChunkInfo;
                 }
@@ -311,14 +277,14 @@ namespace Latios.Kinemation.Systems
 
             var lodParams = LODGroupExtensions.CalculateLODParams(cullingContext.lodParameters);
 
-            int cullingPlaneCount = cullingContext.cullingPlanes.Length;
-            var planes            = FrustumPlanes.BuildSOAPlanePackets(cullingContext.cullingPlanes, Allocator.TempJob);
+            var planes = FrustumPlanes.BuildSOAPlanePackets(cullingContext.cullingPlanes, Allocator.TempJob);
 
             var  currentOrderVersion  = EntityManager.GetComponentOrderVersion<LODRange>();
             bool lodParamsMatchPrev   = lodParams.Equals(m_PrevLODParams);
             var  resetLod             = !lodParamsMatchPrev;
             resetLod                 |= m_firstRun;
             resetLod                 |= (currentOrderVersion - m_lastOrderVersion) > 0;
+
             if (resetLod)
             {
                 float cameraMoveDistance      = math.length(m_PrevCameraPos - lodParams.cameraPos);
@@ -343,9 +309,6 @@ namespace Latios.Kinemation.Systems
                         Fixed16CamDistance.FromFloatCeil(cameraMoveDistance * lodParams.distanceScale),
                     DistanceScale        = lodParams.distanceScale,
                     DistanceScaleChanged = lodDistanceScaleChanged,
-#if UNITY_EDITOR
-                    Stats = brgContext.cullingStats,
-#endif
                 };
 
                 Dependency = selectLodEnabledJob.ScheduleParallel(m_query, Dependency);
@@ -377,15 +340,6 @@ namespace Latios.Kinemation.Systems
             public ComponentTypeHandle<HybridChunkInfo>        HybridChunkInfo;
             [ReadOnly] public ComponentTypeHandle<ChunkHeader> ChunkHeader;
 
-#if UNITY_EDITOR
-            [NativeDisableUnsafePtrRestriction] public CullingStats* Stats;
-
-#pragma warning disable 649
-            [NativeSetThreadIndex] public int ThreadIndex;
-#pragma warning restore 649
-
-#endif
-
             public void Execute(ArchetypeChunk archetypeChunk, int chunkIndex)
             {
                 var hybridChunkInfoArray = archetypeChunk.GetNativeArray(HybridChunkInfo);
@@ -402,9 +356,6 @@ namespace Latios.Kinemation.Systems
 
                     var chunkOrderChanged = chunk.DidOrderChange(lastSystemVersion);
 
-#if UNITY_EDITOR
-                    Stats[ThreadIndex].Stats[CullingStats.kLodTotal]++;
-#endif
                     var internalBatchIndex = hybridChunkInfo.InternalIndex;
                     var chunkInstanceCount = chunk.Count;
                     var isOrtho            = LODParams.isOrtho;
@@ -412,14 +363,8 @@ namespace Latios.Kinemation.Systems
                     ref var                 chunkCullingData      = ref hybridChunkInfo.CullingData;
                     ChunkInstanceLodEnabled chunkEntityLodEnabled = chunkCullingData.InstanceLodEnableds;
 
-#if UNITY_EDITOR
-                    ChunkInstanceLodEnabled oldEntityLodEnabled = chunkEntityLodEnabled;
-#endif
                     if (0 == (chunkCullingData.Flags & HybridChunkCullingData.kFlagHasLodData))
                     {
-#if UNITY_EDITOR
-                        Stats[ThreadIndex].Stats[CullingStats.kLodNoRequirements]++;
-#endif
                         chunkEntityLodEnabled.Enabled[0] = 0;
                         chunkEntityLodEnabled.Enabled[1] = 0;
                         for (int i = 0; i < chunkInstanceCount; ++i)
@@ -439,10 +384,6 @@ namespace Latios.Kinemation.Systems
                         {
                             chunkEntityLodEnabled.Enabled[0] = 0;
                             chunkEntityLodEnabled.Enabled[1] = 0;
-
-#if UNITY_EDITOR
-                            Stats[ThreadIndex].Stats[CullingStats.kLodChunksTested]++;
-#endif
 
                             var rootLODRanges          = chunk.GetNativeArray(RootLODRanges);
                             var rootLODReferencePoints = chunk.GetNativeArray(RootLODReferencePoints);
@@ -507,14 +448,6 @@ namespace Latios.Kinemation.Systems
                             chunkCullingData.MovementGraceFixed16 = Fixed16CamDistance.FromFloatFloor(graceDistance);
                         }
                     }
-
-#if UNITY_EDITOR
-                    if (oldEntityLodEnabled.Enabled[0] != chunkEntityLodEnabled.Enabled[0] ||
-                        oldEntityLodEnabled.Enabled[1] != chunkEntityLodEnabled.Enabled[1])
-                    {
-                        Stats[ThreadIndex].Stats[CullingStats.kLodChanged]++;
-                    }
-#endif
 
                     chunkCullingData.InstanceLodEnableds = chunkEntityLodEnabled;
                     hybridChunkInfoArray[entityIndex]    = hybridChunkInfo;
