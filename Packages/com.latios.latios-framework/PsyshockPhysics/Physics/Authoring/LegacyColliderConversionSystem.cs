@@ -9,6 +9,8 @@ using Unity.Mathematics;
 
 namespace Latios.Psyshock.Authoring.Systems
 {
+    [UpdateInGroup(typeof(GameObjectConversionGroup))]
+    [DisableAutoCreation]
     [ConverterVersion("latios", 3)]
     public class LegacyColliderConversionSystem : GameObjectConversionSystem
     {

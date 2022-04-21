@@ -85,6 +85,30 @@ namespace Unity.Entities.Exposed
 
             return result;
         }
+
+        public static event Action<World> OnWorldCreated
+        {
+            add
+            {
+                World.WorldCreated += value;
+            }
+            remove
+            {
+                World.WorldCreated -= value;
+            }
+        }
+
+        public static event Action<World, ComponentSystemBase> OnSystemCreated
+        {
+            add
+            {
+                World.SystemCreated += value;
+            }
+            remove
+            {
+                World.SystemCreated -= value;
+            }
+        }
     }
 }
 

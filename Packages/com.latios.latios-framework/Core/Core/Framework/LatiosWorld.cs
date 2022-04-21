@@ -72,6 +72,8 @@ namespace Latios
 
         public LatiosWorld(string name, WorldFlags flags = WorldFlags.Simulation) : base(name, flags)
         {
+            Authoring.ConversionBootstrapUtilities.RegisterConversionWorldAction();
+
             //BootstrapTools.PopulateTypeManagerWithGenerics(typeof(ManagedComponentTag<>),               typeof(IManagedComponent));
             BootstrapTools.PopulateTypeManagerWithGenerics(typeof(ManagedComponentSystemStateTag<>),    typeof(IManagedComponent));
             //BootstrapTools.PopulateTypeManagerWithGenerics(typeof(CollectionComponentTag<>),            typeof(ICollectionComponent));
@@ -87,12 +89,16 @@ namespace Latios
             bus.Struct.worldBlackboardEntity = (Entity)worldBlackboardEntity;
             bus.Struct.sceneBlackboardEntity = default;
 
-            useExplicitSystemOrdering   = true;
             m_initializationSystemGroup = GetOrCreateSystem<LatiosInitializationSystemGroup>();
             m_simulationSystemGroup     = GetOrCreateSystem<LatiosSimulationSystemGroup>();
             m_presentationSystemGroup   = GetOrCreateSystem<LatiosPresentationSystemGroup>();
             m_syncPointPlaybackSystem   = GetExistingSystem<SyncPointPlaybackSystem>();
-            useExplicitSystemOrdering   = false;
+        }
+
+        public BlackboardEntity ForceCreateNewSceneBlackboardEntityAndCallOnNewScene()
+        {
+            CreateNewSceneBlackboardEntity(true);
+            return sceneBlackboardEntity;
         }
 
         //Todo: Make this API public in the future.
@@ -100,6 +106,7 @@ namespace Latios
         internal void ResumeNextFrame() => m_resumeNextFrame = true;
         internal bool paused => m_paused;
         internal bool willResumeNextFrame => m_resumeNextFrame;
+        internal bool autoGenerateSceneBlackboardEntity = true;
 
         internal void FrameStart()
         {
@@ -108,14 +115,27 @@ namespace Latios
                 m_paused          = false;
                 m_resumeNextFrame = false;
             }
+
+            if (autoGenerateSceneBlackboardEntity)
+            {
+                CreateNewSceneBlackboardEntity();
+                autoGenerateSceneBlackboardEntity = false;
+            }
         }
 
-        internal void CreateNewSceneBlackboardEntity()
+        internal void CreateNewSceneBlackboardEntity(bool forceRecreate = false)
         {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
             m_sceneBlackboardSafetyOverride = true;
 #endif
-            if (!EntityManager.Exists(sceneBlackboardEntity) || !sceneBlackboardEntity.HasComponent<SceneBlackboardTag>())
+            bool existsAndIsValid = EntityManager.Exists(sceneBlackboardEntity) && sceneBlackboardEntity.HasComponent<SceneBlackboardTag>();
+            if (forceRecreate && existsAndIsValid)
+            {
+                EntityManager.DestroyEntity(sceneBlackboardEntity);
+                existsAndIsValid = false;
+            }
+
+            if (!existsAndIsValid)
             {
                 sceneBlackboardEntity = new BlackboardEntity(EntityManager.CreateEntity(), EntityManager);
                 sceneBlackboardEntity.AddComponentData(new SceneBlackboardTag());

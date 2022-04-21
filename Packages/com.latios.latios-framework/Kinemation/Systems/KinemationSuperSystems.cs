@@ -15,8 +15,6 @@ namespace Latios.Kinemation.Systems
     {
         protected override void CreateSystems()
         {
-            worldBlackboardEntity.AddCollectionComponent(new BrgCullingContext());
-
             EnableSystemSorting = false;
 
             GetOrCreateAndAddSystem<FrustumCullBonesSystem>();
@@ -31,7 +29,8 @@ namespace Latios.Kinemation.Systems
 
     [UpdateInGroup(typeof(UpdatePresentationSystemGroup))]
     [UpdateAfter(typeof(RenderBoundsUpdateSystem))]
-    public class KinemationSuperSystem : RootSuperSystem
+    [DisableAutoCreation]
+    public class KinemationRenderUpdateSuperSystem : SuperSystem
     {
         protected override void CreateSystems()
         {
@@ -46,7 +45,8 @@ namespace Latios.Kinemation.Systems
     }
 
     [UpdateInGroup(typeof(StructuralChangePresentationSystemGroup))]
-    public class KinemationRenderSyncPointSuperSystem : RootSuperSystem
+    [DisableAutoCreation]
+    public class KinemationRenderSyncPointSuperSystem : SuperSystem
     {
         protected override void CreateSystems()
         {
@@ -56,7 +56,8 @@ namespace Latios.Kinemation.Systems
     }
 
     [UpdateInGroup(typeof(Latios.Systems.LatiosWorldSyncGroup))]
-    public class KinemationFrameSyncPointSuperSystem : RootSuperSystem
+    [DisableAutoCreation]
+    public class KinemationFrameSyncPointSuperSystem : SuperSystem
     {
         protected override void CreateSystems()
         {

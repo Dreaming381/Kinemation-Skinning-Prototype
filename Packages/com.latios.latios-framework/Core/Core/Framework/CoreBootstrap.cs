@@ -8,11 +8,18 @@ namespace Latios
     {
         public static void InstallSceneManager(World world)
         {
-            // Todo:
+            if (world.Flags.HasFlag(WorldFlags.Conversion))
+                throw new System.InvalidOperationException("Cannot install Scene Manager in a conversion world.");
+
+            BootstrapTools.InjectSystem(typeof(SceneManagerSystem),                 world);
+            BootstrapTools.InjectSystem(typeof(DestroyEntitiesOnSceneChangeSystem), world);
         }
 
         public static void InstallImprovedTransforms(World world)
         {
+            if (world.Flags.HasFlag(WorldFlags.Conversion))
+                throw new System.InvalidOperationException("Cannot install Improved Transforms in a conversion world.");
+
             if (world.GetExistingSystem<ExtremeLocalToParentSystem>() != null)
             {
                 throw new System.InvalidOperationException("Cannot install Improved Transforms when Extreme Transforms are already installed.");
@@ -43,6 +50,9 @@ namespace Latios
 
         public static void InstallExtremeTransforms(World world)
         {
+            if (world.Flags.HasFlag(WorldFlags.Conversion))
+                throw new System.InvalidOperationException("Cannot install Extreme Transforms in a conversion world.");
+
             var unmanaged = world.Unmanaged;
 
             bool caughtException = false;

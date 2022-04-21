@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using Latios.Psyshock;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
@@ -10,67 +9,11 @@ using UnityEngine.Rendering;
 
 namespace Latios.Kinemation
 {
-    #region Meshes
-
-    // This is a WriteGroup target.
-    public struct ChunkPerCameraCullingMask : IComponentData
-    {
-        public BitField64 lower;
-        public BitField64 upper;
-    }
-
-    // Warning: Do not write to this component!
-    // This is marked WriteGroup to ensure normal unskinned meshes can use write group filtering.
-    // Include this if you choose to use WriteGroup filtering yourself.
-    [WriteGroup(typeof(ChunkPerCameraCullingMask))]
-    public struct ChunkPerFrameCullingMask : IComponentData
-    {
-        public BitField64 lower;
-        public BitField64 upper;
-    }
-
-    public struct BindSkeletonRoot : IComponentData
-    {
-        public EntityWith<SkeletonRootTag> root;
-    }
-
+    // Meshes
     internal struct SkeletonDependent : ISystemStateComponentData
     {
         public EntityWith<SkeletonRootTag>          root;
         public BlobAssetReference<MeshSkinningBlob> skinningBlob;
-    }
-
-    public struct BoneWeightLinkedList
-    {
-        public float weight;
-        public uint  next10Lds7Bone15;
-    }
-
-    public struct VertexToSkin
-    {
-        public float3 position;
-        public float3 normal;
-        public float3 tangent;
-    }
-
-    public struct MeshSkinningBlob
-    {
-        public BlobArray<float>                maxRadialOffsetsInBoneSpaceByBone;
-        public BlobArray<VertexToSkin>         verticesToSkin;
-        public BlobArray<BoneWeightLinkedList> boneWeights;
-        public BlobArray<uint>                 boneWeightBatchStarts;
-        public Hash128                         authoredHash;
-        public FixedString128Bytes             name;
-
-        public override int GetHashCode() => authoredHash.GetHashCode();
-    }
-
-    public struct MeshSkinningBlobReference : IComponentData, IEquatable<MeshSkinningBlobReference>
-    {
-        public BlobAssetReference<MeshSkinningBlob> blob;
-
-        public bool Equals(MeshSkinningBlobReference other) => blob == other.blob;
-        public override int GetHashCode() => blob.Value.GetHashCode();
     }
 
     [MaterialProperty("_ComputeMeshIndex", MaterialPropertyFormat.Float)]
@@ -79,28 +22,7 @@ namespace Latios.Kinemation
         public uint firstVertexIndex;
     }
 
-    [WriteGroup(typeof(ChunkPerCameraCullingMask))]
-    internal struct ChunkComputeDeformMemoryMetadata : IComponentData
-    {
-        public int vertexStartPrefixSum;
-        public int verticesPerMesh;
-        public int entitiesInChunk;
-    }
-    #endregion
-    #region All Skeletons
-    public struct SkeletonRootTag : IComponentData { }
-
-    public struct BoneOwningSkeletonReference : IComponentData
-    {
-        public EntityWith<SkeletonRootTag> skeletonRoot;
-    }
-
-    public struct ChunkPerCameraSkeletonCullingMask : IComponentData
-    {
-        public BitField64 lower;
-        public BitField64 upper;
-    }
-
+    // All skeletons
     // This is system state to prevent copies on instantiate
     internal struct DependentSkinnedMesh : ISystemStateBufferElementData
     {
@@ -117,25 +39,7 @@ namespace Latios.Kinemation
         public int startIndexInBuffer;
     }
 
-    #endregion
-    #region Exposed skeleton
-    public struct BoneTag : IComponentData { }
-
-    public struct BoneIndex : IComponentData
-    {
-        public int index;
-    }
-
-    public struct BoneBindPose : IComponentData
-    {
-        public float4x4 bindPose;
-    }
-
-    public struct BoneBounds : IComponentData
-    {
-        public float radialOffsetInBoneSpace;
-    }
-
+    // Exposed skeletons
     internal struct ExposedSkeletonCullingIndex : IComponentData
     {
         public int cullingIndex;
@@ -144,11 +48,6 @@ namespace Latios.Kinemation
     internal struct BoneCullingIndex : IComponentData
     {
         public int cullingIndex;
-    }
-
-    public struct BoneReference : IBufferElementData
-    {
-        public EntityWith<BoneTag> bone;
     }
 
     internal struct BoneWorldBounds : IComponentData
@@ -160,32 +59,8 @@ namespace Latios.Kinemation
     {
         public AABB chunkBounds;
     }
-    #endregion
-    #region Optimized skeleton
-    public struct OptimizedBindSkeletonBlob
-    {
-        public BlobArray<float4x4> bindPoses;
 
-        // Max of 32767 bones
-        public BlobArray<short> parentIndices;
-    }
-
-    public struct OptimizedBindSkeletonBlobReference : IComponentData
-    {
-        public BlobAssetReference<OptimizedBindSkeletonBlob> blob;
-    }
-
-    public struct OptimizedBoneToRoot : IBufferElementData
-    {
-        public float4x4 boneToRoot;
-    }
-
-    // The length of this is 0 when no meshes are bound.
-    public struct OptimizedBoneBounds : IBufferElementData
-    {
-        public float radialOffsetInBoneSpace;
-    }
-
+    // Optimized skeletons
     internal struct SkeletonWorldBounds : IComponentData
     {
         public AABB bounds;
@@ -196,12 +71,6 @@ namespace Latios.Kinemation
         public AABB chunkBounds;
     }
 
-    [WriteGroup(typeof(Unity.Transforms.LocalToWorld))]
-    public struct CopyLocalToWorldFromBone : IComponentData
-    {
-        public short boneIndex;
-    }
-    #endregion
     #region Blackboard
     internal struct LastFrameRenderedNotRenderedVerticesTag : IComponentData { }
 
@@ -345,19 +214,6 @@ namespace Latios.Kinemation
             pool.Dispose();
             return inputDeps;
         }
-    }
-
-    public struct CullingPlane : IBufferElementData
-    {
-        public UnityEngine.Plane plane;
-    }
-
-    public struct CullingContext : IComponentData
-    {
-        public LODParameters lodParameters;
-        public float4x4      cullingMatrix;
-        public float         nearPlane;
-        public int           cullIndexThisFrame;
     }
 
     internal struct BrgCullingContextTag : IComponentData { }

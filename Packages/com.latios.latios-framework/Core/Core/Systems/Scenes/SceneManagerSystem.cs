@@ -23,6 +23,8 @@ namespace Latios.Systems
                 isSceneFirstFrame = false
             };
             worldBlackboardEntity.AddComponentData(curr);
+
+            latiosWorld.autoGenerateSceneBlackboardEntity = false;
         }
 
         protected override void OnUpdate()

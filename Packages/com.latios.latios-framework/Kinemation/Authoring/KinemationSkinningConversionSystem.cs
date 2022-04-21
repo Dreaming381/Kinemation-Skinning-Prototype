@@ -14,7 +14,9 @@ using Hash128                 = Unity.Entities.Hash128;
 
 namespace Latios.Kinemation.Authoring
 {
+    [UpdateInGroup(typeof(GameObjectConversionGroup))]
     [UpdateBefore(typeof(SkinnedMeshRendererConversion))]
+    [DisableAutoCreation]
     public class KinemationSkinningConversionSystem : GameObjectConversionSystem
     {
         struct BindPoseMemory : IBufferElementData
@@ -61,7 +63,10 @@ namespace Latios.Kinemation.Authoring
 
         protected override void OnUpdate()
         {
-            World.GetExistingSystem<SkinnedMeshRendererConversion>().Enabled = false;
+            var system = World.GetExistingSystem<SkinnedMeshRendererConversion>();
+            if (system != null && system.Enabled)
+                throw new System.InvalidOperationException(
+                    "Kinemation Conversion has detected conflicting Hybrid Renderer Systems. Please disable SkinnedMeshRendererConversion, remove it, or install the Kinemation Conversion after injecting Hybrid Renderer Conversion Systems.");
 
             //Temporary workaround
             var tempList = new NativeList<int>(Allocator.TempJob);

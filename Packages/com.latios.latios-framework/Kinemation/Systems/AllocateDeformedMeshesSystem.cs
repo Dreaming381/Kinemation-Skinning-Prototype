@@ -26,8 +26,6 @@ namespace Latios.Kinemation.Systems
 
         protected override void OnUpdate()
         {
-            World.GetExistingSystem<Unity.Rendering.DeformationsInPresentation>().Enabled = false;
-
             var metaHandle    = GetComponentTypeHandle<ChunkComputeDeformMemoryMetadata>();
             var indicesHandle = GetComponentTypeHandle<ComputeDeformShaderIndex>();
 

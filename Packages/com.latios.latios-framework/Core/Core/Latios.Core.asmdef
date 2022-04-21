@@ -10,7 +10,8 @@
         "Unity.Collections",
         "Unity.Entities.Hybrid",
         "Unity.Burst",
-        "Unity.Scenes"
+        "Unity.Scenes",
+        "Unity.Build"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

@@ -2522,8 +2522,6 @@ namespace Latios.Kinemation.Systems
         #region Callbacks
         protected override void OnCreate()
         {
-            World.GetExistingSystem<HybridRendererSystem>().Enabled = false;
-
             // If all graphics rendering has been disabled, early out from all HR functionality
 #if HYBRID_RENDERER_DISABLED
             s_HybridRendererEnabled = false;
@@ -2540,6 +2538,7 @@ namespace Latios.Kinemation.Systems
             m_cullingSuperSystem = World.GetOrCreateSystem<KinemationCullingSuperSystem>();
             worldBlackboardEntity.AddComponent<CullingContext>();
             worldBlackboardEntity.AddBuffer<CullingPlane>();
+            worldBlackboardEntity.AddCollectionComponent(new BrgCullingContext());
 
             m_PersistentInstanceDataSize = kGPUBufferSizeInitial;
 
@@ -2707,8 +2706,7 @@ namespace Latios.Kinemation.Systems
             if (!s_HybridRendererEnabled)
                 return;
 
-            World.GetExistingSystem<HybridRendererSystem>().Enabled = false;
-            m_cullIndexThisFrame                                    = 0;
+            m_cullIndexThisFrame = 0;
 
             Profiler.BeginSample("CompleteJobs");
             Dependency.Complete();  // #todo

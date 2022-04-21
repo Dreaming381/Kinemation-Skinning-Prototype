@@ -1,12 +1,24 @@
 using System;
 using System.Collections.Generic;
 using Latios;
+using Latios.Authoring;
 using Latios.Systems;
 using Unity.Collections;
 using Unity.Entities;
 
 namespace Dragons
 {
+    public class LatiosConversionBootstrap : ICustomConversionBootstrap
+    {
+        public bool InitializeConversion(World conversionWorldWithGroupsAndMappingSystems, CustomConversionSettings settings, ref List<Type> filteredSystems)
+        {
+            var defaultGroup = conversionWorldWithGroupsAndMappingSystems.GetExistingSystem<GameObjectConversionGroup>();
+            BootstrapTools.InjectSystems(filteredSystems, conversionWorldWithGroupsAndMappingSystems, defaultGroup);
+            Latios.Kinemation.Authoring.KinemationConversionBootstrap.InstallKinemationConversion(conversionWorldWithGroupsAndMappingSystems);
+            return true;
+        }
+    }
+
     public class LatiosBootstrap : ICustomBootstrap
     {
         public unsafe bool Initialize(string defaultWorldName)
@@ -31,7 +43,7 @@ namespace Dragons
             BootstrapTools.InjectRootSuperSystems(systems, world, simulationSystemGroup);
 
             CoreBootstrap.InstallExtremeTransforms(world);
-            BootstrapTools.InjectSystem(typeof(Latios.Kinemation.Systems.LatiosHybridRendererSystem), world);
+            Latios.Kinemation.KinemationBootstrap.InstallKinemation(world);
 
             initializationSystemGroup.SortSystems();
             simulationSystemGroup.SortSystems();

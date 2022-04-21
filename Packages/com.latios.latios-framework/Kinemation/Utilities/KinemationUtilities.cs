@@ -8,6 +8,11 @@ namespace Latios.Kinemation
 {
     public static class CullingUtilities
     {
+        public static NativeArray<FrustumPlanes.PlanePacket4> BuildSOAPlanePackets(DynamicBuffer<CullingPlane> cullingPlanes, ref WorldUnmanaged world)
+        {
+            return BuildSOAPlanePackets(cullingPlanes.Reinterpret<UnityEngine.Plane>().AsNativeArray(), ref world);
+        }
+
         public static NativeArray<FrustumPlanes.PlanePacket4> BuildSOAPlanePackets(NativeArray<UnityEngine.Plane> cullingPlanes, ref WorldUnmanaged world)
         {
             int cullingPlaneCount = cullingPlanes.Length;
