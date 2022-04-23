@@ -7,6 +7,7 @@ using Unity.Entities.Exposed.Dangerous;
 
 namespace Latios.Systems
 {
+    [DisableAutoCreation, NoGroupInjection]
     public class LatiosInitializationSystemGroup : InitializationSystemGroup
     {
         private SyncPointPlaybackSystem              m_syncPlayback;

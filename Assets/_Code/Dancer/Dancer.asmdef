@@ -1,6 +1,6 @@
 {
     "name": "Dancer",
-    "rootNamespace": "",
+    "rootNamespace": "Dragons",
     "references": [
         "GUID:46fe9b4ef94d76744bc0b97bc2f73d94",
         "GUID:11912cc675165314485c904ed61b2e92",

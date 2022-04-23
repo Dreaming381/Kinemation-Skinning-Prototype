@@ -13,6 +13,11 @@ using Unity.Entities.Exposed;
 
 namespace Latios
 {
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = false, Inherited = true)]
+    public class NoGroupInjectionAttribute : Attribute
+    {
+    }
+
     public static class BootstrapTools
     {
         #region SystemManipulation
@@ -141,6 +146,9 @@ namespace Latios
             }
             foreach (var g in groups)
             {
+                if (g is NoGroupInjectionAttribute)
+                    break;
+
                 if (!(g is UpdateInGroupAttribute group))
                     continue;
 
@@ -199,6 +207,10 @@ namespace Latios
                 // Skip the built-in root-level system groups
                 var type = system.GetType();
 
+                var noUpdateInGroupAttributes = TypeManager.GetSystemAttributes(system.GetType(), typeof(NoGroupInjectionAttribute));
+                if (noUpdateInGroupAttributes.Length > 0)
+                    continue;
+
                 var updateInGroupAttributes = TypeManager.GetSystemAttributes(system.GetType(), typeof(UpdateInGroupAttribute));
                 if (updateInGroupAttributes.Length == 0)
                 {
@@ -226,6 +238,10 @@ namespace Latios
             {
                 var                 type      = unmanagedTypes[i];
                 SystemHandleUntyped sysHandle = handles[i];
+
+                var noUpdateInGroupAttributes = TypeManager.GetSystemAttributes(type, typeof(NoGroupInjectionAttribute));
+                if (noUpdateInGroupAttributes.Length > 0)
+                    continue;
 
                 var updateInGroupAttributes = TypeManager.GetSystemAttributes(type, typeof(UpdateInGroupAttribute));
                 if (updateInGroupAttributes.Length == 0)

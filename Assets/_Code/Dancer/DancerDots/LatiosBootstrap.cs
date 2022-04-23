@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using Latios;
 using Latios.Authoring;
-using Latios.Systems;
-using Unity.Collections;
 using Unity.Entities;
 
 namespace Dragons
@@ -14,6 +12,7 @@ namespace Dragons
         {
             var defaultGroup = conversionWorldWithGroupsAndMappingSystems.GetExistingSystem<GameObjectConversionGroup>();
             BootstrapTools.InjectSystems(filteredSystems, conversionWorldWithGroupsAndMappingSystems, defaultGroup);
+
             Latios.Kinemation.Authoring.KinemationConversionBootstrap.InstallKinemationConversion(conversionWorldWithGroupsAndMappingSystems);
             return true;
         }
@@ -27,27 +26,17 @@ namespace Dragons
             World.DefaultGameObjectInjectionWorld = world;
             world.useExplicitSystemOrdering       = true;
 
-            var initializationSystemGroup = world.initializationSystemGroup;
-            var simulationSystemGroup     = world.simulationSystemGroup;
-            var presentationSystemGroup   = world.presentationSystemGroup;
-            var systems                   = new List<Type>(DefaultWorldInitialization.GetAllSystems(WorldSystemFilterFlags.Default));
+            var systems = new List<Type>(DefaultWorldInitialization.GetAllSystems(WorldSystemFilterFlags.Default));
 
-            systems.RemoveSwapBack(typeof(LatiosInitializationSystemGroup));
-            systems.RemoveSwapBack(typeof(LatiosSimulationSystemGroup));
-            systems.RemoveSwapBack(typeof(LatiosPresentationSystemGroup));
-            systems.RemoveSwapBack(typeof(InitializationSystemGroup));
-            systems.RemoveSwapBack(typeof(SimulationSystemGroup));
-            systems.RemoveSwapBack(typeof(PresentationSystemGroup));
-
-            BootstrapTools.InjectUnitySystems(systems, world, simulationSystemGroup);
-            BootstrapTools.InjectRootSuperSystems(systems, world, simulationSystemGroup);
+            BootstrapTools.InjectUnitySystems(systems, world, world.simulationSystemGroup);
+            BootstrapTools.InjectRootSuperSystems(systems, world, world.simulationSystemGroup);
 
             CoreBootstrap.InstallExtremeTransforms(world);
             Latios.Kinemation.KinemationBootstrap.InstallKinemation(world);
 
-            initializationSystemGroup.SortSystems();
-            simulationSystemGroup.SortSystems();
-            presentationSystemGroup.SortSystems();
+            world.initializationSystemGroup.SortSystems();
+            world.simulationSystemGroup.SortSystems();
+            world.presentationSystemGroup.SortSystems();
 
             ScriptBehaviourUpdateOrder.AppendWorldToCurrentPlayerLoop(world);
             return true;

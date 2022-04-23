@@ -3,7 +3,7 @@ using Unity.Entities.Exposed;
 
 namespace Latios.Systems
 {
-    [DisableAutoCreation]
+    [DisableAutoCreation, NoGroupInjection]
     public class FixedSimulationSystemGroup : ComponentSystemGroup
     {
         SystemSortingTracker m_tracker;

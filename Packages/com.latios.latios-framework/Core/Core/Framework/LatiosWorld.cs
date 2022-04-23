@@ -309,6 +309,7 @@ namespace Latios
 
 namespace Systems
 {
+    [DisableAutoCreation, NoGroupInjection]
     public class LatiosSimulationSystemGroup : SimulationSystemGroup
     {
         SystemSortingTracker m_tracker;
@@ -319,6 +320,7 @@ namespace Systems
         }
     }
 
+    [DisableAutoCreation, NoGroupInjection]
     public class LatiosPresentationSystemGroup : PresentationSystemGroup
     {
         SystemSortingTracker m_tracker;
