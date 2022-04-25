@@ -110,7 +110,11 @@ namespace Latios
         /// <param name="type">The type to inject. Uses world.GetOrCreateSystem</param>
         /// <param name="world">The world to inject the system into</param>
         /// <param name="defaultGroup">If no UpdateInGroupAttributes exist on the type and this value is not null, the system is injected in this group</param>
-        public static ComponentSystemBaseSystemHandleUntypedUnion InjectSystem(Type type, World world, ComponentSystemGroup defaultGroup = null)
+        /// <param name="groupRemap">If a type in an UpdateInGroupAttribute matches a key in this dictionary, it will be swapped with the value</param>
+        public static ComponentSystemBaseSystemHandleUntypedUnion InjectSystem(Type type,
+                                                                               World world,
+                                                                               ComponentSystemGroup defaultGroup          = null,
+                                                                               IReadOnlyDictionary<Type, Type> groupRemap = null)
         {
             bool isManaged = false;
             if (typeof(ComponentSystemBase).IsAssignableFrom(type))
@@ -122,17 +126,7 @@ namespace Latios
                 return default;
             }
 
-            var groups = type.GetCustomAttributes(typeof(UpdateInGroupAttribute), true);
-            if (groups.Length == 0 && defaultGroup != null)
-            {
-                ComponentSystemBase result = world.GetOrCreateSystem(type);
-                defaultGroup.AddSystemToUpdateList(result);
-                return new ComponentSystemBaseSystemHandleUntypedUnion
-                {
-                    systemManaged = result,
-                    systemHandle  = result.SystemHandleUntyped
-                };
-            }
+            var groups = TypeManager.GetSystemAttributes(type, typeof(UpdateInGroupAttribute));
 
             ComponentSystemBaseSystemHandleUntypedUnion newSystem = default;
             if (isManaged)
@@ -144,30 +138,26 @@ namespace Latios
             {
                 newSystem.systemHandle = world.GetOrCreateUnmanagedSystem(type);
             }
+            if (groups.Length == 0 && defaultGroup != null)
+            {
+                if (isManaged)
+                    defaultGroup.AddSystemToUpdateList(newSystem);
+                else
+                    defaultGroup.AddUnmanagedSystemToUpdateList(newSystem);
+            }
             foreach (var g in groups)
             {
-                if (g is NoGroupInjectionAttribute)
+                if (TypeManager.GetSystemAttributes(newSystem.GetType(), typeof(NoGroupInjectionAttribute)).Length > 0)
                     break;
 
-                if (!(g is UpdateInGroupAttribute group))
-                    continue;
-
-                if (!(typeof(ComponentSystemGroup)).IsAssignableFrom(group.GroupType))
+                var group = FindOrCreateGroup(world, type, g, defaultGroup, groupRemap);
+                if (group != null)
                 {
-                    Debug.LogError($"Invalid [UpdateInGroup] attribute for {type}: {group.GroupType} must be derived from ComponentSystemGroup.");
-                    continue;
+                    if (isManaged)
+                        group.AddSystemToUpdateList(newSystem);
+                    else
+                        group.AddUnmanagedSystemToUpdateList(newSystem);
                 }
-
-                var groupMgr = world.GetExistingSystem(group.GroupType);
-                if (groupMgr == null)
-                {
-                    groupMgr = InjectSystem(group.GroupType, world, defaultGroup);
-                }
-                var groupTarget = groupMgr as ComponentSystemGroup;
-                if (isManaged)
-                    groupTarget.AddSystemToUpdateList(newSystem);
-                else
-                    groupTarget.AddUnmanagedSystemToUpdateList(newSystem);
             }
             return newSystem;
         }
@@ -181,7 +171,11 @@ namespace Latios
         /// <param name="types">The types to inject.</param>
         /// <param name="world">The world to inject the system into</param>
         /// <param name="defaultGroup">If no UpdateInGroupAttributes exist on the type and this value is not null, the system is injected in this group</param>
-        public static ComponentSystemBaseSystemHandleUntypedUnion[] InjectSystems(IList<Type> types, World world, ComponentSystemGroup defaultGroup = null)
+        /// <param name="groupRemap">If a type in an UpdateInGroupAttribute matches a key in this dictionary, it will be swapped with the value</param>
+        public static ComponentSystemBaseSystemHandleUntypedUnion[] InjectSystems(IReadOnlyList<Type> types,
+                                                                                  World world,
+                                                                                  ComponentSystemGroup defaultGroup          = null,
+                                                                                  IReadOnlyDictionary<Type, Type> groupRemap = null)
         {
             var managedTypes   = new List<Type>();
             var unmanagedTypes = new List<Type>();
@@ -219,13 +213,10 @@ namespace Latios
 
                 foreach (var attr in updateInGroupAttributes)
                 {
-                    var group = FindOrCreateGroup(world, type, attr, defaultGroup);
+                    var group = FindOrCreateGroup(world, type, attr, defaultGroup, groupRemap);
                     if (group != null)
                     {
                         group.AddSystemToUpdateList(system);
-                    }
-                    else
-                    {
                     }
                 }
             }
@@ -251,7 +242,7 @@ namespace Latios
 
                 foreach (var attr in updateInGroupAttributes)
                 {
-                    ComponentSystemGroup groupSys = FindOrCreateGroup(world, type, attr, defaultGroup);
+                    ComponentSystemGroup groupSys = FindOrCreateGroup(world, type, attr, defaultGroup, groupRemap);
 
                     if (groupSys != null)
                     {
@@ -283,14 +274,21 @@ namespace Latios
             return result;
         }
 
-        private static ComponentSystemGroup FindOrCreateGroup(World world, Type systemType, Attribute attr, ComponentSystemGroup defaultGroup)
+        private static ComponentSystemGroup FindOrCreateGroup(World world, Type systemType, Attribute attr, ComponentSystemGroup defaultGroup, IReadOnlyDictionary<Type,
+                                                                                                                                                                   Type> remap)
         {
             var uga = attr as UpdateInGroupAttribute;
 
             if (uga == null)
                 return null;
 
-            if (!TypeManager.IsSystemAGroup(uga.GroupType))
+            var groupType = uga.GroupType;
+            if (remap != null && remap.TryGetValue(uga.GroupType, out var remapType))
+                groupType = remapType;
+            if (groupType == null)
+                return null;
+
+            if (!TypeManager.IsSystemAGroup(groupType))
             {
                 throw new InvalidOperationException($"Invalid [UpdateInGroup] attribute for {systemType}: {uga.GroupType} must be derived from ComponentSystemGroup.");
             }
@@ -299,10 +297,10 @@ namespace Latios
                 throw new InvalidOperationException($"The system {systemType} can not specify both OrderFirst=true and OrderLast=true in its [UpdateInGroup] attribute.");
             }
 
-            var groupSys = world.GetExistingSystem(uga.GroupType);
+            var groupSys = world.GetExistingSystem(groupType);
             if (groupSys == null)
             {
-                groupSys = InjectSystem(uga.GroupType, world, defaultGroup);
+                groupSys = InjectSystem(groupType, world, defaultGroup, remap);
             }
 
             return groupSys as ComponentSystemGroup;

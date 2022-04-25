@@ -42,9 +42,9 @@ namespace Latios
             }
             set => m_syncPointPlaybackSystem = value;
         }
-        public LatiosInitializationSystemGroup initializationSystemGroup => m_initializationSystemGroup;
-        public LatiosSimulationSystemGroup simulationSystemGroup => m_simulationSystemGroup;
-        public LatiosPresentationSystemGroup presentationSystemGroup => m_presentationSystemGroup;
+        public InitializationSystemGroup initializationSystemGroup => m_initializationSystemGroup;
+        public SimulationSystemGroup simulationSystemGroup => m_simulationSystemGroup;
+        public PresentationSystemGroup presentationSystemGroup => m_presentationSystemGroup;
 
         public bool useExplicitSystemOrdering = false;
 
@@ -61,16 +61,23 @@ namespace Latios
         private CollectionComponentStorage         m_collectionsStorage = new CollectionComponentStorage();
         private UnmanagedExtraInterfacesDispatcher m_interfacesDispatcher;
 
-        private LatiosInitializationSystemGroup         m_initializationSystemGroup;
-        private LatiosSimulationSystemGroup             m_simulationSystemGroup;
-        private LatiosPresentationSystemGroup           m_presentationSystemGroup;
+        private InitializationSystemGroup               m_initializationSystemGroup;
+        private SimulationSystemGroup                   m_simulationSystemGroup;
+        private PresentationSystemGroup                 m_presentationSystemGroup;
         private SyncPointPlaybackSystem                 m_syncPointPlaybackSystem;
         private SystemHandle<BlackboardUnmanagedSystem> m_blackboardUnmanagedSystem;
 
         private bool m_paused          = false;
         private bool m_resumeNextFrame = false;
 
-        public LatiosWorld(string name, WorldFlags flags = WorldFlags.Simulation) : base(name, flags)
+        public enum WorldRole
+        {
+            Default,
+            Client,
+            Server
+        }
+
+        public LatiosWorld(string name, WorldFlags flags = WorldFlags.Simulation, WorldRole role = WorldRole.Default) : base(name, flags)
         {
             Authoring.ConversionBootstrapUtilities.RegisterConversionWorldAction();
 
@@ -89,10 +96,29 @@ namespace Latios
             bus.Struct.worldBlackboardEntity = (Entity)worldBlackboardEntity;
             bus.Struct.sceneBlackboardEntity = default;
 
-            m_initializationSystemGroup = GetOrCreateSystem<LatiosInitializationSystemGroup>();
-            m_simulationSystemGroup     = GetOrCreateSystem<LatiosSimulationSystemGroup>();
-            m_presentationSystemGroup   = GetOrCreateSystem<LatiosPresentationSystemGroup>();
-            m_syncPointPlaybackSystem   = GetExistingSystem<SyncPointPlaybackSystem>();
+            if (role == WorldRole.Default)
+            {
+                m_initializationSystemGroup = GetOrCreateSystem<LatiosInitializationSystemGroup>();
+                m_simulationSystemGroup     = GetOrCreateSystem<LatiosSimulationSystemGroup>();
+                m_presentationSystemGroup   = GetOrCreateSystem<LatiosPresentationSystemGroup>();
+            }
+            else if (role == WorldRole.Client)
+            {
+#if NETCODE_PROJECT
+                m_initializationSystemGroup = GetOrCreateSystem<Compatibility.UnityNetCode.LatiosClientInitializationSystemGroup>();
+                m_simulationSystemGroup     = GetOrCreateSystem<Compatibility.UnityNetCode.LatiosClientSimulationSystemGroup>();
+                m_presentationSystemGroup   = GetOrCreateSystem<Compatibility.UnityNetCode.LatiosClientPresentationSystemGroup>();
+#endif
+            }
+            else if (role == WorldRole.Server)
+            {
+#if NETCODE_PROJECT
+                m_initializationSystemGroup = GetOrCreateSystem<Compatibility.UnityNetCode.LatiosServerInitializationSystemGroup>();
+                m_simulationSystemGroup     = GetOrCreateSystem<Compatibility.UnityNetCode.LatiosServerSimulationSystemGroup>();
+#endif
+            }
+
+            m_syncPointPlaybackSystem = GetExistingSystem<SyncPointPlaybackSystem>();
         }
 
         public BlackboardEntity ForceCreateNewSceneBlackboardEntityAndCallOnNewScene()

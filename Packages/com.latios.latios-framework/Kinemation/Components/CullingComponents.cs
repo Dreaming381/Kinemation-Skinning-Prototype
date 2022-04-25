@@ -25,8 +25,8 @@ namespace Latios.Kinemation
     [WriteGroup(typeof(ChunkPerCameraCullingMask))]
     public struct ChunkPerFrameCullingMask : IComponentData
     {
-        internal BitField64 lower;
-        internal BitField64 upper;
+        public BitField64 lower;
+        public BitField64 upper;
     }
 
     // Usage: Read Only (No exceptions!)

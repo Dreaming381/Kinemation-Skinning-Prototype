@@ -11,6 +11,8 @@ namespace Latios
             if (world.Flags.HasFlag(WorldFlags.Conversion))
                 throw new System.InvalidOperationException("Cannot install Scene Manager in a conversion world.");
 
+            DisallowNetCode("Scene Manager");
+
             BootstrapTools.InjectSystem(typeof(SceneManagerSystem),                 world);
             BootstrapTools.InjectSystem(typeof(DestroyEntitiesOnSceneChangeSystem), world);
         }
@@ -90,6 +92,12 @@ namespace Latios
             BootstrapTools.InjectSystem(typeof(ExtremeParentSystem),        world);
             BootstrapTools.InjectSystem(typeof(ExtremeChildDepthsSystem),   world);
             BootstrapTools.InjectSystem(typeof(ExtremeLocalToParentSystem), world);
+        }
+
+        [System.Diagnostics.Conditional("NETCODE_PROJECT")]
+        private static void DisallowNetCode(string feature)
+        {
+            throw new System.InvalidOperationException($"{feature} cannot be used in a Unity NetCode project.");
         }
     }
 }

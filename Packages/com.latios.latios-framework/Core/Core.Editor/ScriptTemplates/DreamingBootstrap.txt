@@ -4,6 +4,7 @@ using Latios;
 using Latios.Authoring;
 using Unity.Entities;
 
+[UnityEngine.Scripting.Preserve]
 public class LatiosConversionBootstrap : ICustomConversionBootstrap
 {
     public bool InitializeConversion(World conversionWorldWithGroupsAndMappingSystems, CustomConversionSettings settings, ref List<Type> filteredSystems)
@@ -17,6 +18,7 @@ public class LatiosConversionBootstrap : ICustomConversionBootstrap
     }
 }
 
+[UnityEngine.Scripting.Preserve]
 public class LatiosBootstrap : ICustomBootstrap
 {
     public unsafe bool Initialize(string defaultWorldName)

@@ -7,7 +7,7 @@ namespace Latios.Systems
 {
     [DisableAutoCreation]
     [UpdateInGroup(typeof(LatiosWorldSyncGroup), OrderFirst = true)]
-    [UpdateBefore(typeof(ManagedComponentsReactiveSystemGroup))]
+    //[UpdateBefore(typeof(ManagedComponentsReactiveSystemGroup))] // Constrained in ManagedComponentsReactiveSystemGroup.
     public partial class MergeBlackboardsSystem : SubSystem
     {
         private EntityDataCopyKit m_copyKit;

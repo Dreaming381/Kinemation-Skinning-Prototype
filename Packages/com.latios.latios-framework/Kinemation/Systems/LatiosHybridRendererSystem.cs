@@ -91,7 +91,7 @@ namespace Latios.Kinemation.Systems
     [UpdateInGroup(typeof(PresentationSystemGroup))]
     [UpdateAfter(typeof(UpdatePresentationSystemGroup))]
     [UpdateBefore(typeof(HybridRendererSystem))]
-
+    [DisableAutoCreation]
     public unsafe partial class LatiosHybridRendererSystem : SubSystem
     {
         #region UtilityTypes
@@ -2502,7 +2502,7 @@ namespace Latios.Kinemation.Systems
             }
         }
 
-        internal void UpdateGlobalAmbientProbe(SHProperties globalAmbientProbe)
+        private void UpdateGlobalAmbientProbe(SHProperties globalAmbientProbe)
         {
             if (!s_HybridRendererEnabled)
                 return;
@@ -2707,6 +2707,8 @@ namespace Latios.Kinemation.Systems
                 return;
 
             m_cullIndexThisFrame = 0;
+
+            UpdateGlobalAmbientProbe(new SHProperties(RenderSettings.ambientProbe));
 
             Profiler.BeginSample("CompleteJobs");
             Dependency.Complete();  // #todo

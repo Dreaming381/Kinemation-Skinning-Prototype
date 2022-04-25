@@ -46,7 +46,7 @@ namespace Latios.Systems
     }
 
     [DisableAutoCreation]
-    [UpdateInGroup(typeof(LatiosInitializationSystemGroup))]
+    [UpdateInGroup(typeof(InitializationSystemGroup))]
     [UpdateAfter(typeof(Unity.Scenes.SceneSystemGroup))]
     [UpdateAfter(typeof(ConvertToEntitySystem))]
     public class LatiosWorldSyncGroup : ComponentSystemGroup
@@ -60,7 +60,7 @@ namespace Latios.Systems
     }
 
     [DisableAutoCreation]
-    [UpdateInGroup(typeof(LatiosInitializationSystemGroup), OrderFirst = true)]
+    [UpdateInGroup(typeof(InitializationSystemGroup), OrderFirst = true)]
     [UpdateBefore(typeof(BeginInitializationEntityCommandBufferSystem))]
     public class PreSyncPointGroup : ComponentSystemGroup
     {

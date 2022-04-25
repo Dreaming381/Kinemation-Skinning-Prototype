@@ -214,6 +214,7 @@ namespace Latios.Authoring
                 settings.ExtraSystems            = System.Array.Empty<System.Type>();
                 settings.ConversionWorldCreated += OnConversionWorldCreationFinished;
                 m_settings                       = settings;
+                m_ranCleanup                     = false;
 
                 foreach (var system in World.Systems)
                 {
@@ -227,7 +228,7 @@ namespace Latios.Authoring
             }
 
             GameObjectConversionSettings m_settings;
-            bool                         m_ranCleanup = false;
+            bool                         m_ranCleanup = true;
             HashSet<ComponentSystemBase> m_disableSet = new HashSet<ComponentSystemBase>();
 
             protected override void OnDestroy()

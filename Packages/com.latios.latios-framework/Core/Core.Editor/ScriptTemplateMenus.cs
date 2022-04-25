@@ -50,6 +50,20 @@ internal class ScriptTemplateMenus
         CreateScriptFromTemplate("ISystem.txt", "NewBurstSystem.cs");
     }
 
+#if NETCODE_PROJECT
+    [MenuItem("Assets/Create/Latios/Bootstrap/NetCode Minimal - Injection Workflow")]
+    public static void CreateNetCodeMinimalInjectionBootstrap()
+    {
+        CreateScriptFromTemplate("NetCodeMinimalInjectionBootstrap.txt", "NetCodeLatiosBootstrap.cs");
+    }
+
+    [MenuItem("Assets/Create/Latios/Bootstrap/NetCode Standard - Injection Workflow")]
+    public static void CreateNetCodeStandardInjectionBootstrap()
+    {
+        CreateScriptFromTemplate("NetCodeStandardInjectionBootstrap.txt", "NetCodeLatiosBootstrap.cs");
+    }
+#endif
+
     public static void CreateScriptFromTemplate(string templateName, string defaultScriptName)
     {
         bool success = true;

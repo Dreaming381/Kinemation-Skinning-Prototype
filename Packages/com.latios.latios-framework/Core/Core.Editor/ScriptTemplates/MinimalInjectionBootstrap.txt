@@ -4,6 +4,7 @@ using Latios;
 using Latios.Authoring;
 using Unity.Entities;
 
+[UnityEngine.Scripting.Preserve]
 public class LatiosBootstrap : ICustomBootstrap
 {
     public unsafe bool Initialize(string defaultWorldName)

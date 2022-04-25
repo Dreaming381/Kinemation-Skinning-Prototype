@@ -29,6 +29,7 @@ namespace Latios
             }
             else
             {
+                UnityEngine.Debug.LogError($"Potentially missing DisableAutoCreationAttribute for {GetType()}");
                 throw new InvalidOperationException(
                     "The current world is not of type LatiosWorld required for Latios framework functionality. Did you forget to create a Bootstrap?");
             }

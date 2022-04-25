@@ -33,7 +33,8 @@ namespace Latios.Kinemation.Systems
 
         EntityQuery m_query;
 
-        int  m_lastOrderVersion;
+        int  m_lastLodRangeOrderVersion;
+        int  m_lastChunkInfoOrderVersion;
         bool m_firstRun = true;
 
         protected override void OnCreate()
@@ -50,11 +51,11 @@ namespace Latios.Kinemation.Systems
 
             var planes = FrustumPlanes.BuildSOAPlanePackets(cullingContext.cullingPlanes, Allocator.TempJob);
 
-            var  currentOrderVersion  = EntityManager.GetComponentOrderVersion<LODRange>();
-            bool lodParamsMatchPrev   = lodParams.Equals(m_PrevLODParams);
-            var  resetLod             = !lodParamsMatchPrev;
-            resetLod                 |= m_firstRun;
-            resetLod                 |= (currentOrderVersion - m_lastOrderVersion) > 0;
+            bool lodParamsMatchPrev  = lodParams.Equals(m_PrevLODParams);
+            var  resetLod            = !lodParamsMatchPrev;
+            resetLod                |= m_firstRun;
+            resetLod                |= (EntityManager.GetComponentOrderVersion<LODRange>() - m_lastLodRangeOrderVersion) > 0;
+            resetLod                |= (EntityManager.GetComponentOrderVersion<HybridChunkInfo>() - m_lastChunkInfoOrderVersion) > 0;
 
             if (resetLod)
             {
@@ -86,8 +87,9 @@ namespace Latios.Kinemation.Systems
                 m_PrevCameraPos        = lodParams.cameraPos;
                 m_firstRun             = false;
             }
-            m_lastOrderVersion = currentOrderVersion;
-            Dependency         = planes.Dispose(Dependency);
+            m_lastLodRangeOrderVersion  = EntityManager.GetComponentOrderVersion<LODRange>();
+            m_lastChunkInfoOrderVersion = EntityManager.GetComponentOrderVersion<HybridChunkInfo>();
+            Dependency                  = planes.Dispose(Dependency);
         }
 
         [BurstCompile]

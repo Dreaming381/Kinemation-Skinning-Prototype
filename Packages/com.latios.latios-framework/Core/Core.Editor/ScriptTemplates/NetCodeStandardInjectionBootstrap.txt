@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using Latios;
 using Latios.Authoring;
+using Latios.Compatibility.UnityNetCode;
 using Unity.Entities;
 
 [UnityEngine.Scripting.Preserve]
@@ -19,15 +20,19 @@ public class LatiosConversionBootstrap : ICustomConversionBootstrap
 }
 
 [UnityEngine.Scripting.Preserve]
-public class LatiosBootstrap : ICustomBootstrap
+public class NetCodeLatiosBootstrap : LatiosClientServerBootstrapBase
 {
-    public unsafe bool Initialize(string defaultWorldName)
+    public override bool Initialize(string defaultWorldName)
     {
-        var world                             = new LatiosWorld(defaultWorldName);
-        World.DefaultGameObjectInjectionWorld = world;
+        AutoConnectPort = 7979;  // Enable auto connect
+        return base.Initialize(defaultWorldName);
+    }
 
-        var systems = new List<Type>(DefaultWorldInitialization.GetAllSystems(WorldSystemFilterFlags.Default));
-        DefaultWorldInitialization.AddSystemsToRootLevelSystemGroups(world, systems);
+    public override World CreateCustomClientWorld(string worldName)
+    {
+        var world = new LatiosWorld(worldName, WorldFlags.Game, LatiosWorld.WorldRole.Client);
+
+        BootstrapTools.InjectSystems(ClientSystems, world, world.simulationSystemGroup, ClientGroupRemap);
 
         CoreBootstrap.InstallImprovedTransforms(world);
         Latios.Myri.MyriBootstrap.InstallMyri(world);
@@ -37,7 +42,20 @@ public class LatiosBootstrap : ICustomBootstrap
         world.simulationSystemGroup.SortSystems();
         world.presentationSystemGroup.SortSystems();
 
-        ScriptBehaviourUpdateOrder.AppendWorldToCurrentPlayerLoop(world);
-        return true;
+        return world;
+    }
+
+    public override World CreateCustomServerWorld(string worldName)
+    {
+        var world = new LatiosWorld(worldName, WorldFlags.Game, LatiosWorld.WorldRole.Server);
+
+        BootstrapTools.InjectSystems(ServerSystems, world, world.simulationSystemGroup, ServerGroupRemap);
+
+        CoreBootstrap.InstallImprovedTransforms(world);
+
+        world.initializationSystemGroup.SortSystems();
+        world.simulationSystemGroup.SortSystems();
+
+        return world;
     }
 }
