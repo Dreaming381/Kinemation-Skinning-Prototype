@@ -53,9 +53,14 @@ namespace Latios.Compatibility.UnityNetCode
         public override void CreateDefaultClientServerWorlds(World defaultWorld)
         {
             PlayType playModeType    = RequestedPlayType;
-            int      numClientWorlds = 1;
-
+            int numClientWorlds = 1;
             int totalNumClients = numClientWorlds;
+
+            if (playModeType == PlayType.Server || playModeType == PlayType.ClientAndServer)
+            {
+                CreateAndWrapServerWorld(defaultWorld, "ServerWorld");
+            }
+
             if (playModeType != PlayType.Server)
             {
 #if UNITY_EDITOR
@@ -73,11 +78,6 @@ namespace Latios.Compatibility.UnityNetCode
                     clientWorld.EntityManager.CreateEntity(typeof(ThinClientComponent));
                 }
 #endif
-            }
-
-            if (playModeType != PlayType.Client)
-            {
-                CreateAndWrapServerWorld(defaultWorld, "ServerWorld");
             }
         }
 
@@ -177,8 +177,8 @@ namespace Latios.Compatibility.UnityNetCode
             WorldType mask = WorldType.NoWorld;
             foreach (var grp in groups)
             {
-                var group  = grp as UpdateInGroupAttribute;
-                mask      |= GetTopLevelWorldMask(group.GroupType);
+                var group = grp as UpdateInGroupAttribute;
+                mask |= GetTopLevelWorldMask(group.GroupType);
             }
 
             return mask;
@@ -191,21 +191,8 @@ namespace Latios.Compatibility.UnityNetCode
 #else
             var serverWorld = CreateCustomServerWorld(serverWorldName);
 
-            // Bind to the DefaultWorld
-            var serverInitializationGroup = serverWorld.GetExistingSystem<ServerInitializationSystemGroup>();
-            if (serverInitializationGroup != null)
-            {
-                var initializationTickSystem = defaultWorld.GetOrCreateSystem<TickServerInitializationSystem>();
-                ReflectionHelper.SetFieldValue(serverInitializationGroup, "ParentTickSystem", initializationTickSystem);
-                initializationTickSystem.AddSystemToUpdateList(serverInitializationGroup);
-            }
-            var serverSimulationGroup = serverWorld.GetExistingSystem<ServerSimulationSystemGroup>();
-            if (serverSimulationGroup != null)
-            {
-                var simulationTickSystem = defaultWorld.GetOrCreateSystem<TickServerSimulationSystem>();
-                ReflectionHelper.SetFieldValue(serverSimulationGroup, "ParentTickSystem", simulationTickSystem);
-                simulationTickSystem.AddSystemToUpdateList(serverSimulationGroup);
-            }
+            // Todo: Make users install into PlayerLoop? Would allow for N-1 loops.
+            ScriptBehaviourUpdateOrder.AppendWorldToCurrentPlayerLoop(serverWorld);
 
             if (AutoConnectPort != 0)
                 serverWorld.GetExistingSystem<NetworkStreamReceiveSystem>().Listen(DefaultListenAddress.WithPort(AutoConnectPort));
@@ -222,28 +209,8 @@ namespace Latios.Compatibility.UnityNetCode
 
             var clientWorld = CreateCustomClientWorld(clientWorldName);
 
-            // Bind to the DefaultWorld
-            var clientInitializationGroup = clientWorld.GetExistingSystem<ClientInitializationSystemGroup>();
-            if (clientInitializationGroup != null)
-            {
-                var initializationTickSystem = defaultWorld.GetOrCreateSystem<TickClientInitializationSystem>();
-                ReflectionHelper.SetFieldValue(clientInitializationGroup, "ParentTickSystem", initializationTickSystem);
-                initializationTickSystem.AddSystemToUpdateList(clientInitializationGroup);
-            }
-            var clientSimulationGroup = clientWorld.GetExistingSystem<ClientSimulationSystemGroup>();
-            if (clientSimulationGroup != null)
-            {
-                var simulationTickSystem = defaultWorld.GetOrCreateSystem<TickClientSimulationSystem>();
-                ReflectionHelper.SetFieldValue(clientSimulationGroup, "ParentTickSystem", simulationTickSystem);
-                simulationTickSystem.AddSystemToUpdateList(clientSimulationGroup);
-            }
-            var clientPresentationGroup = clientWorld.GetExistingSystem<ClientPresentationSystemGroup>();
-            if (clientPresentationGroup != null)
-            {
-                var presentationTickSystem = defaultWorld.GetOrCreateSystem<TickClientPresentationSystem>();
-                ReflectionHelper.SetFieldValue(clientPresentationGroup, "ParentTickSystem", presentationTickSystem);
-                presentationTickSystem.AddSystemToUpdateList(clientPresentationGroup);
-            }
+            // Todo: Make users install into PlayerLoop? Would allow for N-1 loops.
+            ScriptBehaviourUpdateOrder.AppendWorldToCurrentPlayerLoop(clientWorld);
 
             if (AutoConnectPort != 0 && DefaultConnectAddress != NetworkEndPoint.AnyIpv4)
             {
@@ -281,7 +248,7 @@ namespace Latios.Compatibility.UnityNetCode
             {
                 if (obj == null)
                     throw new ArgumentNullException("obj");
-                Type      objType   = obj.GetType();
+                Type objType   = obj.GetType();
                 FieldInfo fieldInfo = GetFieldInfo(objType, fieldName);
                 if (fieldInfo == null)
                     throw new ArgumentOutOfRangeException("fieldName",
@@ -293,7 +260,7 @@ namespace Latios.Compatibility.UnityNetCode
             {
                 if (obj == null)
                     throw new ArgumentNullException("obj");
-                Type      objType   = obj.GetType();
+                Type objType   = obj.GetType();
                 FieldInfo fieldInfo = GetFieldInfo(objType, fieldName);
                 if (fieldInfo == null)
                     throw new ArgumentOutOfRangeException("fieldName",
@@ -304,3 +271,4 @@ namespace Latios.Compatibility.UnityNetCode
     }
 }
 #endif
+

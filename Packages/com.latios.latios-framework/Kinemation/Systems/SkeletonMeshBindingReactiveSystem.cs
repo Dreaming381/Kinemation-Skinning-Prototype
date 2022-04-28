@@ -496,6 +496,7 @@ namespace Latios.Kinemation.Systems
                     {
                         startsAndCounts.Add(new int2(i, 1));
                         currentStartCount = ref startsAndCounts.ElementAt(startsAndCounts.Length - 1);
+                        lastEntity        = operations[i].targetEntity;
                     }
                     else
                         currentStartCount.y++;

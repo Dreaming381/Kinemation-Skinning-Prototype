@@ -62,6 +62,7 @@ namespace Latios.Systems
     [DisableAutoCreation]
     [UpdateInGroup(typeof(InitializationSystemGroup), OrderFirst = true)]
     [UpdateBefore(typeof(BeginInitializationEntityCommandBufferSystem))]
+    [UpdateBefore(typeof(SyncPointPlaybackSystem))]
     public class PreSyncPointGroup : ComponentSystemGroup
     {
         SystemSortingTracker m_tracker;

@@ -12,8 +12,8 @@ using UnityEngine.Profiling;
 namespace Latios.Systems
 {
     [DisableAutoCreation]
-    [UpdateInGroup(typeof(LatiosInitializationSystemGroup), OrderFirst = true)]
-    [UpdateAfter(typeof(BeginInitializationEntityCommandBufferSystem))]
+    [UpdateInGroup(typeof(InitializationSystemGroup), OrderFirst = true)]
+    [UpdateBefore(typeof(BeginInitializationEntityCommandBufferSystem))]
     public partial class SyncPointPlaybackSystem : SubSystem
     {
         enum PlaybackType
