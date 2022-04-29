@@ -10,7 +10,8 @@ namespace Latios.Psyshock.Authoring
             if (!world.Flags.HasFlag(WorldFlags.Conversion))
                 throw new System.InvalidOperationException("Psyshock Legacy Collider Conversion must be installed in a conversion world.");
 
-            BootstrapTools.InjectSystem(typeof(LegacyColliderConversionSystem), world);
+            BootstrapTools.InjectSystem(typeof(LegacyConvexColliderPreConversionSystem), world);
+            BootstrapTools.InjectSystem(typeof(LegacyColliderConversionSystem),          world);
         }
     }
 }

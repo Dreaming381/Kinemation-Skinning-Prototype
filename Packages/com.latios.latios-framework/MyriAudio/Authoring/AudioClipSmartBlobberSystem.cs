@@ -116,7 +116,7 @@ namespace Latios.Myri.Authoring.Systems
                 var input = blobberData.input[i];
                 if (input.clip == null || input.clip.channels > 2)
                 {
-                    if (input.clip.channels > 2)
+                    if (input.clip != null && input.clip.channels > 2)
                         Debug.LogError($"Myri failed to convert clip {input.clip.name}. Only mono and stereo clips are supported.");
 
                     hashes[i]                 = default;
@@ -192,7 +192,7 @@ namespace Latios.Myri.Authoring.Systems
         }
 
         [BurstCompile]
-        public struct DeduplicateJob : IJob
+        struct DeduplicateJob : IJob
         {
             [ReadOnly] public NativeArray<int2> hashes;
             public NativeArray<int>             inputToFilteredMapping;
@@ -206,7 +206,7 @@ namespace Latios.Myri.Authoring.Systems
                         continue;
 
                     if (map.TryGetValue(hashes[i], out int index))
-                        inputToFilteredMapping[i] = i; //index;
+                        inputToFilteredMapping[i] = index;
                     else
                         map.Add(hashes[i], i);
                 }

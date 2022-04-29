@@ -610,7 +610,7 @@ namespace Latios.Authoring.Systems
                         filterError.Value = new FilterError { errorIndex = i, reason = FilterError.Reason.ForwardIndex };
                         return;
                     }
-                    else
+                    else if (inputToFilteredMapping[i] >= 0)
                     {
                         int dedupIndex = inputToFilteredMapping[i];
                         if (inputToFilteredMapping[dedupIndex] != dedupIndex)

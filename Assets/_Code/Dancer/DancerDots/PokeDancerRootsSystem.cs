@@ -20,5 +20,16 @@ namespace Dragons
             }).ScheduleParallel();
         }
     }
+
+    public partial class TestConvexSystem : SubSystem
+    {
+        protected override void OnUpdate()
+        {
+            Entities.ForEach((in Translation t, in Rotation r, in Latios.Psyshock.Collider c) =>
+            {
+                Latios.Psyshock.PhysicsDebug.DrawCollider(c, new RigidTransform(r.Value, t.Value), UnityEngine.Color.red);
+            }).Schedule();
+        }
+    }
 }
 

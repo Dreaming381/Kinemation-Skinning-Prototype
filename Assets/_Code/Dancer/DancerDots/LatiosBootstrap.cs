@@ -13,6 +13,7 @@ namespace Dragons
             var defaultGroup = conversionWorldWithGroupsAndMappingSystems.GetExistingSystem<GameObjectConversionGroup>();
             BootstrapTools.InjectSystems(filteredSystems, conversionWorldWithGroupsAndMappingSystems, defaultGroup);
 
+            Latios.Psyshock.Authoring.PsyshockConversionBootstrap.InstallLegacyColliderConversion(conversionWorldWithGroupsAndMappingSystems);
             Latios.Kinemation.Authoring.KinemationConversionBootstrap.InstallKinemationConversion(conversionWorldWithGroupsAndMappingSystems);
             return true;
         }
@@ -51,6 +52,7 @@ namespace Dragons
         {
             GetOrCreateAndAddSystem<SpawnAndBuildReferencesSystem>();
             //GetOrCreateAndAddSystem<PokeDancerRootsSystem>();
+            GetOrCreateAndAddSystem<TestConvexSystem>();
             GetOrCreateAndAddSystem<SampleDancersExposedSystem>();
             GetOrCreateAndAddSystem<SampleDancersOptimizedSystem>();
             GetOrCreateAndAddSystem<Unity.Transforms.TransformSystemGroup>();

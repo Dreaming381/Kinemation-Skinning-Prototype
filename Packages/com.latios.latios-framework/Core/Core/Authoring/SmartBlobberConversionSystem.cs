@@ -6,6 +6,15 @@ using Unity.Jobs;
 
 namespace Latios.Authoring
 {
+    /// <summary>
+    /// Implement this interface to request BlobAsset conversion from SmartBlobbers before
+    /// they execute. You can then retrieve the results using IConvertGameObjectToEntity.
+    /// </summary>
+    public interface IRequestBlobAssets
+    {
+        void RequestBlobAssets(Entity entity, EntityManager dstEntityManager, GameObjectConversionSystem conversionSystem);
+    }
+
     #region Handles
     /// <summary>
     /// A handle to a computed blob to be created by a smart blobber
@@ -83,10 +92,13 @@ namespace Latios.Authoring.Systems
         public BlobAssetReference<TBlobType> BuildBlob(int prefilterIndex, int postfilterIndex, ref TContextType context);
     }
 
-    public interface ISmartBlobberHashBuilder<TBlobType, TContextType> where TBlobType : unmanaged where TContextType : struct
-    {
-        public Hash128 hash(int prefilterIndex, int postfilterIndex, ref TContextType context);
-    }
+    // Unity does not cache blobs and hashes between conversions, meaning hashes only help deduplicate identical assets.
+    // Smart blobbers have their own mechanism for deduplication at the input side, so using hashes only to deduplicate
+    // final blob assets is sufficient. Therefore, pre-hashing rarely offsets its own cost and complexity.
+    /*public interface ISmartBlobberHashBuilder<TBlobType, TContextType> where TBlobType : unmanaged where TContextType : struct
+       {
+        public Hash128 ComputeHash(int prefilterIndex, int postfilterIndex, ref TContextType context);
+       }*/
     #endregion
 
     #region BaseClasses
