@@ -23,6 +23,7 @@ namespace Latios.Kinemation.Systems
             GetOrCreateAndAddSystem<FrustumCullSkinnedEntitiesSystem>();
             GetOrCreateAndAddSystem<FrustumCullUnskinnedEntitiesSystem>();
             GetOrCreateAndAddSystem<SkinningDispatchSystem>();
+            GetOrCreateAndAddSystem<UploadMaterialPropertiesSystem>();
             GetOrCreateAndAddSystem<UpdateVisibilitiesSystem>();
         }
     }
@@ -50,7 +51,7 @@ namespace Latios.Kinemation.Systems
     {
         protected override void CreateSystems()
         {
-            GetOrCreateAndAddSystem<AddMissingCullingMaskSystem>();
+            GetOrCreateAndAddSystem<AddMissingMasksSystem>();
             GetOrCreateAndAddSystem<SkeletonMeshBindingReactiveSystem>();
         }
     }
@@ -61,7 +62,7 @@ namespace Latios.Kinemation.Systems
     {
         protected override void CreateSystems()
         {
-            GetOrCreateAndAddSystem<AddMissingCullingMaskSystem>();
+            GetOrCreateAndAddSystem<AddMissingMasksSystem>();
             GetOrCreateAndAddSystem<SkeletonMeshBindingReactiveSystem>();
         }
     }

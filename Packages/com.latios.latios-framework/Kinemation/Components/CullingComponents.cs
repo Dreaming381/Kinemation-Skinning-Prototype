@@ -42,6 +42,7 @@ namespace Latios.Kinemation
     // Usage: Read Only (No exceptions!)
     // This lives on the worldBlackboardEntity and is set on the main thread for each camera.
     // For SIMD culling, use Kinemation.CullingUtilities and Unity.Rendering.FrustumPlanes.
+    [InternalBufferCapacity(0)]
     public struct CullingPlane : IBufferElementData
     {
         public UnityEngine.Plane plane;
@@ -55,6 +56,26 @@ namespace Latios.Kinemation
         public float4x4      cullingMatrix;
         public float         nearPlane;
         public int           cullIndexThisFrame;
+    }
+
+    // Usage: Write only if necessary
+    // Change filtering on material properties does not work during culling.
+    // Instead, you can write a true to the material property index instead.
+    // Be careful, because changing a property of an entity rendered by a
+    // previous camera is a race condition.
+    public struct ChunkMaterialPropertyDirtyMask : IComponentData
+    {
+        public BitField64 lower;
+        public BitField64 upper;
+    }
+
+    // Usage: Read Only (No exceptions!)
+    // This lives on the worldBlackboardEntity and is set whenever the global list of instanced
+    // material properties changes. The indices correspond to the ChunkMaterialPropertyDirtyMask.
+    [InternalBufferCapacity(0)]
+    public struct MaterialPropertyComponentType : IBufferElementData
+    {
+        public ComponentType type;
     }
 }
 

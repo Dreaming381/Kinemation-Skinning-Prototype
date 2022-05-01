@@ -53,6 +53,7 @@ namespace Dragons
             GetOrCreateAndAddSystem<SpawnAndBuildReferencesSystem>();
             //GetOrCreateAndAddSystem<PokeDancerRootsSystem>();
             GetOrCreateAndAddSystem<TestConvexSystem>();
+            GetOrCreateAndAddSystem<ChangeColorsSystem>();
             GetOrCreateAndAddSystem<SampleDancersExposedSystem>();
             GetOrCreateAndAddSystem<SampleDancersOptimizedSystem>();
             GetOrCreateAndAddSystem<Unity.Transforms.TransformSystemGroup>();

@@ -31,5 +31,18 @@ namespace Dragons
             }).Schedule();
         }
     }
+
+    public partial class ChangeColorsSystem : SubSystem
+    {
+        protected override void OnUpdate()
+        {
+            float time = math.frac((float)Time.ElapsedTime);
+
+            Entities.ForEach((ref Unity.Rendering.URPMaterialPropertyBaseColor color) =>
+            {
+                color.Value.x = time;
+            }).ScheduleParallel();
+        }
+    }
 }
 

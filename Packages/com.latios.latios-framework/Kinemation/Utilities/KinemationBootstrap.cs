@@ -8,6 +8,11 @@ namespace Latios.Kinemation
     {
         public static void InstallKinemation(World world)
         {
+            if (!UnityEngine.SystemInfo.supportsAsyncGPUReadback)
+            {
+                throw new System.InvalidOperationException("Kinemation only works on platforms which support Async GPU Readback.");
+            }
+
             var unityRenderer = world.GetExistingSystem<HybridRendererSystem>();
             if (unityRenderer != null)
                 unityRenderer.Enabled = false;

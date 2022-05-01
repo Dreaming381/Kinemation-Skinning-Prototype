@@ -224,10 +224,9 @@ namespace Latios.Kinemation
         public NativeArray<int>    internalToExternalMappingIds;
 
         public Type AssociatedComponentType => typeof(BrgCullingContextTag);
-
-        // We don't own this data
         public JobHandle Dispose(JobHandle inputDeps)
         {
+            // We don't own this data
             return inputDeps;
         }
     }
@@ -239,10 +238,9 @@ namespace Latios.Kinemation
         public List<UnityEngine.ComputeBuffer> boneMatricesBuffers;
 
         public Type AssociatedComponentType => typeof(BoneMatricesPerFrameBuffersManagerTag);
-
-        // We don't own the buffers.
         public JobHandle Dispose(JobHandle inputDeps)
         {
+            // We don't own the buffers.
             return inputDeps;
         }
     }
@@ -250,6 +248,25 @@ namespace Latios.Kinemation
     internal struct MaxRequiredDeformVertices : IComponentData
     {
         public int verticesCount;
+    }
+
+    internal struct MaterialPropertiesUploadContextTag : IComponentData { }
+
+    internal struct MaterialPropertiesUploadContext : ICollectionComponent
+    {
+        public NativeList<DefaultValueBlitDescriptor> defaultValueBlits;
+        public int                                    requiredPersistentBufferSize;
+
+        public int                        hybridRenderedChunkCount;
+        public NativeArray<ChunkProperty> chunkProperties;
+        public ComponentTypeCache         componentTypeCache;
+
+        public Type AssociatedComponentType => typeof(MaterialPropertiesUploadContextTag);
+        public JobHandle Dispose(JobHandle inputDeps)
+        {
+            // We don't own this data
+            return inputDeps;
+        }
     }
     #endregion
 }

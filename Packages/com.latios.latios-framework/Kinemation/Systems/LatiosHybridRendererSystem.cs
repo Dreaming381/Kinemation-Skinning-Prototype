@@ -490,6 +490,233 @@ namespace Latios.Kinemation.Systems
             public ComponentTypeHandle<PerInstanceCullingTag>      PerInstanceCullingTag;
         }
 
+        [BurstCompile]
+        internal struct HybridChunkUpdater
+        {
+            public const uint kFloatsPerAABB = 6;
+            public const int  kMinX          = 0;
+            public const int  kMinY          = 1;
+            public const int  kMinZ          = 2;
+            public const int  kMaxX          = 3;
+            public const int  kMaxY          = 4;
+            public const int  kMaxZ          = 5;
+
+            public ComponentTypeCache.BurstCompatibleTypeArray ComponentTypes;
+
+            [NativeDisableParallelForRestriction]
+            public NativeArray<long> UnreferencedInternalIndices;
+            [NativeDisableParallelForRestriction]
+            public NativeArray<long> BatchRequiresUpdates;
+            [NativeDisableParallelForRestriction]
+            public NativeArray<long> BatchHadMovingEntities;
+
+            [NativeDisableParallelForRestriction]
+            [ReadOnly]
+            public NativeArray<ChunkProperty> ChunkProperties;
+
+            [NativeDisableParallelForRestriction]
+            [ReadOnly]
+            public NativeList<BatchMotionInfo> BatchMotionInfos;
+
+            [NativeDisableParallelForRestriction]
+            public NativeList<float> BatchAABBs;
+            public MinMaxAABB        ThreadLocalAABB;
+
+#if USE_PICKING_MATRICES
+            [NativeDisableParallelForRestriction]
+            [ReadOnly]
+            public NativeList<IntPtr> BatchPickingMatrices;
+#endif
+
+            public uint LastSystemVersion;
+            public int  PreviousBatchIndex;
+
+            public int LocalToWorldType;
+            public int WorldToLocalType;
+            public int PrevWorldToLocalType;
+
+#if PROFILE_BURST_JOB_INTERNALS
+            public ProfilerMarker ProfileAddUpload;
+            public ProfilerMarker ProfilePickingMatrices;
+#endif
+
+            public unsafe void MarkBatchForUpdates(int internalIndex, bool entitiesMoved)
+            {
+                AtomicHelpers.IndexToQwIndexAndMask(internalIndex, out int qw, out long mask);
+                Debug.Assert(qw < BatchRequiresUpdates.Length && qw < BatchHadMovingEntities.Length,
+                             "Batch index out of bounds");
+
+                var  motionInfo               = BatchMotionInfos[internalIndex];
+                bool mustDisableMotionVectors = motionInfo.MotionVectorFlagSet && !entitiesMoved;
+
+                // If entities moved, we always update the batch since bounds must be updated.
+                // If no entities moved, we only update the batch if it requires motion vector disable.
+                if (entitiesMoved || mustDisableMotionVectors)
+                    AtomicHelpers.AtomicOr((long*)BatchRequiresUpdates.GetUnsafePtr(), qw, mask);
+
+                if (entitiesMoved)
+                    AtomicHelpers.AtomicOr((long*)BatchHadMovingEntities.GetUnsafePtr(), qw, mask);
+            }
+
+            unsafe void MarkBatchAsReferenced(int internalIndex)
+            {
+                // If the batch is referenced, remove it from the unreferenced bitfield
+
+                AtomicHelpers.IndexToQwIndexAndMask(internalIndex, out int qw, out long mask);
+
+                Debug.Assert(qw < UnreferencedInternalIndices.Length, "Batch index out of bounds");
+
+                AtomicHelpers.AtomicAnd(
+                    (long*)UnreferencedInternalIndices.GetUnsafePtr(),
+                    qw,
+                    ~mask);
+            }
+
+            public void ProcessChunk(ref HybridChunkInfo chunkInfo, ref ChunkMaterialPropertyDirtyMask mask, ArchetypeChunk chunk, ChunkWorldRenderBounds chunkBounds)
+            {
+#if DEBUG_LOG_CHUNKS
+                Debug.Log(
+                    $"HybridChunkUpdater.ProcessChunk(internalBatchIndex: {chunkInfo.InternalIndex}, valid: {chunkInfo.Valid}, count: {chunk.Count}, chunk: {chunk.GetHashCode()})");
+#endif
+
+                if (chunkInfo.Valid)
+                    ProcessValidChunk(ref chunkInfo, ref mask, chunk, chunkBounds.Value, false);
+            }
+
+            public unsafe void ProcessValidChunk(ref HybridChunkInfo chunkInfo, ref ChunkMaterialPropertyDirtyMask mask, ArchetypeChunk chunk,
+                                                 MinMaxAABB chunkAABB, bool isNewChunk)
+            {
+                if (!isNewChunk)
+                    MarkBatchAsReferenced(chunkInfo.InternalIndex);
+
+                int internalIndex = chunkInfo.InternalIndex;
+                UpdateBatchAABB(internalIndex, chunkAABB);
+
+                bool structuralChanges = chunk.DidOrderChange(LastSystemVersion);
+
+                fixed (DynamicComponentTypeHandle* fixedT0 = &ComponentTypes.t0)
+                {
+                    for (int i = chunkInfo.ChunkTypesBegin; i < chunkInfo.ChunkTypesEnd; ++i)
+                    {
+                        var chunkProperty = ChunkProperties[i];
+                        var type          = chunkProperty.ComponentTypeIndex;
+                    }
+
+                    for (int i = chunkInfo.ChunkTypesBegin; i < chunkInfo.ChunkTypesEnd; ++i)
+                    {
+                        var chunkProperty = ChunkProperties[i];
+                        var type          = ComponentTypes.Type(fixedT0, chunkProperty.ComponentTypeIndex);
+                        var typeIndex     = ComponentTypes.TypeIndexToArrayIndex[ComponentTypeCache.GetArrayIndex(chunkProperty.ComponentTypeIndex)];
+
+                        var chunkType          = chunkProperty.ComponentTypeIndex;
+                        var isLocalToWorld     = chunkType == LocalToWorldType;
+                        var isWorldToLocal     = chunkType == WorldToLocalType;
+                        var isPrevWorldToLocal = chunkType == PrevWorldToLocalType;
+
+                        var skipComponent = isWorldToLocal || isPrevWorldToLocal;
+
+                        bool componentChanged  = chunk.DidChange(type, LastSystemVersion);
+                        bool copyComponentData = (isNewChunk || structuralChanges || componentChanged) && !skipComponent;
+
+                        if (copyComponentData)
+                        {
+                            if (typeIndex >= 64)
+                                mask.upper.SetBits(typeIndex - 64, true);
+                            else
+                                mask.lower.SetBits(typeIndex, true);
+#if DEBUG_LOG_PROPERTIES
+                            Debug.Log($"UpdateChunkProperty(internalBatchIndex: {chunkInfo.InternalIndex}, property: {i}, elementSize: {chunkProperty.ValueSizeBytesCPU})");
+#endif
+
+                            var src = chunk.GetDynamicComponentDataArrayReinterpret<int>(type,
+                                                                                         chunkProperty.ValueSizeBytesCPU);
+
+#if PROFILE_BURST_JOB_INTERNALS
+                            ProfileAddUpload.Begin();
+#endif
+
+                            int sizeBytes = (int)((uint)chunk.Count * (uint)chunkProperty.ValueSizeBytesCPU);
+                            var srcPtr    = src.GetUnsafeReadOnlyPtr();
+                            var dstOffset = chunkProperty.GPUDataBegin;
+                            if (isLocalToWorld)
+                            {
+                                var numMatrices = sizeBytes / sizeof(float4x4);
+
+#if USE_PICKING_MATRICES
+                                // If picking support is enabled, also copy the LocalToWorld matrices
+                                // to the traditional instancing matrix array. This should be thread safe
+                                // because the related Burst jobs run during DOTS system execution, and
+                                // are guaranteed to have finished before rendering starts.
+#if PROFILE_BURST_JOB_INTERNALS
+                                ProfilePickingMatrices.Begin();
+#endif
+                                float4x4* batchPickingMatrices = (float4x4*)BatchPickingMatrices[internalIndex];
+                                int chunkOffsetInBatch   = chunkInfo.CullingData.BatchOffset;
+                                UnsafeUtility.MemCpy(
+                                    batchPickingMatrices + chunkOffsetInBatch,
+                                    srcPtr,
+                                    sizeBytes);
+#if PROFILE_BURST_JOB_INTERNALS
+                                ProfilePickingMatrices.End();
+#endif
+#endif
+                            }
+
+#if PROFILE_BURST_JOB_INTERNALS
+                            ProfileAddUpload.End();
+#endif
+                        }
+                    }
+                }
+            }
+
+            private void UpdateBatchAABB(int internalIndex, MinMaxAABB chunkAABB)
+            {
+                // As long as we keep processing chunks that belong to the same batch,
+                // we can keep accumulating a thread local AABB cheaply.
+                // Once we encounter a different batch, we need to "flush" the thread
+                // local version to the global one with atomics.
+                bool sameBatchAsPrevious = internalIndex == PreviousBatchIndex;
+
+                if (sameBatchAsPrevious)
+                {
+                    ThreadLocalAABB.Encapsulate(chunkAABB);
+                }
+                else
+                {
+                    CommitBatchAABB();
+                    ThreadLocalAABB    = chunkAABB;
+                    PreviousBatchIndex = internalIndex;
+                }
+            }
+
+            private unsafe void CommitBatchAABB()
+            {
+                bool validThreadLocalAABB = PreviousBatchIndex >= 0;
+                if (!validThreadLocalAABB)
+                    return;
+
+                int internalIndex = PreviousBatchIndex;
+                var aabb          = ThreadLocalAABB;
+
+                int    aabbIndex  = (int)(((uint)internalIndex) * kFloatsPerAABB);
+                float* aabbFloats = (float*)BatchAABBs.GetUnsafePtr();
+                AtomicHelpers.AtomicMin(aabbFloats, aabbIndex + kMinX, aabb.Min.x);
+                AtomicHelpers.AtomicMin(aabbFloats, aabbIndex + kMinY, aabb.Min.y);
+                AtomicHelpers.AtomicMin(aabbFloats, aabbIndex + kMinZ, aabb.Min.z);
+                AtomicHelpers.AtomicMax(aabbFloats, aabbIndex + kMaxX, aabb.Max.x);
+                AtomicHelpers.AtomicMax(aabbFloats, aabbIndex + kMaxY, aabb.Max.y);
+                AtomicHelpers.AtomicMax(aabbFloats, aabbIndex + kMaxZ, aabb.Max.z);
+
+                PreviousBatchIndex = -1;
+            }
+
+            public void FinishExecute()
+            {
+                CommitBatchAABB();
+            }
+        }
+
         #endregion
 
         #region Variables
@@ -519,16 +746,12 @@ namespace Latios.Kinemation.Systems
         const ulong kMaxGPUAllocatorMemory = 1024 * 1024 * 1024;  // 1GiB of potential memory space
         const ulong kGPUBufferSizeInitial  = 32 * 1024 * 1024;
         const ulong kGPUBufferSizeMax      = 1023 * 1024 * 1024;
-        const int   kGPUUploaderChunkSize  = 4 * 1024 * 1024;
 
         private BatchRendererGroup m_BatchRendererGroup;
 
-        private ComputeBuffer          m_GPUPersistentInstanceData;
-        private SparseUploader         m_GPUUploader;
-        private ThreadedSparseUploader m_ThreadedGPUUploader;
-        private HeapAllocator          m_GPUPersistentAllocator;
-        private HeapBlock              m_SharedZeroAllocation;
-        private HeapBlock              m_SharedAmbientProbeAllocation;
+        private HeapAllocator m_GPUPersistentAllocator;
+        private HeapBlock     m_SharedZeroAllocation;
+        private HeapBlock     m_SharedAmbientProbeAllocation;
 
         private HeapAllocator m_ChunkMetadataAllocator;
 
@@ -821,6 +1044,16 @@ namespace Latios.Kinemation.Systems
                     m_ComponentTypeCache.UseType(typeIndex);
             }
 
+            // UsedTypes values are the ComponentType values while the keys are the same
+            // except with the bit flags in the high bits masked off.
+            // The HybridRenderer packs ComponentTypeHandles by the order they show up
+            // in the value array from the hashmap.
+            var types  = m_ComponentTypeCache.UsedTypes.GetValueArray(Allocator.Temp);
+            var ctypes = worldBlackboardEntity.GetBuffer<MaterialPropertyComponentType>().Reinterpret<ComponentType>();
+            ctypes.ResizeUninitialized(types.Length);
+            for (int i = 0; i < types.Length; i++)
+                ctypes[i] = ComponentType.ReadOnly(types[i]);
+
             s_TypeToPropertyMappings.Clear();
         }
 
@@ -848,7 +1081,7 @@ namespace Latios.Kinemation.Systems
 #endif
         }
 
-        JobHandle UpdateHybridV2Batches(JobHandle inputDependencies)
+        void UpdateHybridV2Batches(out int totalChunks)
         {
             if (m_FirstFrameAfterInit)
             {
@@ -858,17 +1091,14 @@ namespace Latios.Kinemation.Systems
 
             AlignWithShaderReflectionChanges();
 
-            JobHandle done = default;
             Profiler.BeginSample("UpdateAllBatches");
             using (var hybridChunks =
                        m_HybridRenderedQuery.CreateArchetypeChunkArray(Allocator.TempJob))
             {
-                done = UpdateAllBatches(inputDependencies);
+                UpdateAllBatches(out totalChunks);
             }
 
             Profiler.EndSample();
-
-            return done;
         }
 
         private void OnFirstFrame()
@@ -1004,9 +1234,6 @@ namespace Latios.Kinemation.Systems
 
         private void Dispose()
         {
-            m_GPUUploader.Dispose();
-            m_GPUPersistentInstanceData.Dispose();
-
             m_BatchRendererGroup.Dispose();
             m_MaterialPropertyTypes.Dispose();
             m_MaterialPropertyTypesShared.Dispose();
@@ -1064,7 +1291,7 @@ namespace Latios.Kinemation.Systems
         // We will have to leave this function without optimizations on that platform.
         [MethodImpl(MethodImplOptions.NoOptimization)]
 #endif
-        private JobHandle UpdateAllBatches(JobHandle inputDependencies)
+        private void UpdateAllBatches(out int totalChunks)
         {
             Profiler.BeginSample("GetComponentTypes");
 
@@ -1075,27 +1302,26 @@ namespace Latios.Kinemation.Systems
             var localToWorldsRO           = GetComponentTypeHandle<LocalToWorld>(true);
             var lodRangesRO               = GetComponentTypeHandle<LODRange>(true);
             var rootLodRangesRO           = GetComponentTypeHandle<RootLODRange>(true);
+            var chunkPropertyDirtyMask    = GetComponentTypeHandle<ChunkMaterialPropertyDirtyMask>(false);
 
             m_ComponentTypeCache.FetchTypeHandles(this);
             Profiler.EndSample();
 
             var numNewChunksArray = new NativeArray<int>(1, Allocator.TempJob);
-            int totalChunks       = m_HybridRenderedQuery.CalculateChunkCount();
+            totalChunks           = m_HybridRenderedQuery.CalculateChunkCount();
             var newChunks         = new NativeArray<ArchetypeChunk>(
                 totalChunks,
                 Allocator.TempJob,
                 NativeArrayOptions.UninitializedMemory);
 
-            var classifyNewChunksJob = new ClassifyNewChunksJob
+            Dependency = new ClassifyNewChunksJob
             {
                 HybridChunkInfo = hybridRenderedChunkTypeRO,
                 ChunkHeader     = chunkHeadersRO,
                 NumNewChunks    = numNewChunksArray,
                 NewChunks       = newChunks
             }
-            .Schedule(m_MetaEntitiesForHybridRenderableChunks, inputDependencies);
-
-            JobHandle hybridCompleted = new JobHandle();
+            .Schedule(m_MetaEntitiesForHybridRenderableChunks, Dependency);
 
             const int kNumBitsPerLong             = sizeof(long) * 8;
             var       unreferencedInternalIndices = new NativeArray<long>(
@@ -1113,20 +1339,7 @@ namespace Latios.Kinemation.Systems
             }.Schedule(existingKeys.Length, kNumScatteredIndicesPerThread);
             existingKeys.Dispose(initializedUnreferenced);
 
-            inputDependencies = JobHandle.CombineDependencies(inputDependencies, initializedUnreferenced);
-
-            // Conservative estimate is that every known type is in every chunk. There will be
-            // at most one operation per type per chunk, which will be either an actual
-            // chunk data upload, or a default value blit (a single type should not have both).
-            int conservativeMaximumGpuUploads = totalChunks * m_ComponentTypeCache.UsedTypeCount;
-            var gpuUploadOperations           = new NativeArray<GpuUploadOperation>(
-                conservativeMaximumGpuUploads,
-                Allocator.TempJob,
-                NativeArrayOptions.UninitializedMemory);
-            var numGpuUploadOperationsArray = new NativeArray<int>(
-                1,
-                Allocator.TempJob,
-                NativeArrayOptions.ClearMemory);
+            Dependency = JobHandle.CombineDependencies(Dependency, initializedUnreferenced);
 
             uint lastSystemVersion = LastSystemVersion;
 
@@ -1136,7 +1349,7 @@ namespace Latios.Kinemation.Systems
                 lastSystemVersion = 0;
             }
 
-            classifyNewChunksJob.Complete();
+            CompleteDependency();
             int numNewChunks = numNewChunksArray[0];
 
             var maxBatchCount = math.max(kInitialMaxBatchCount, InternalIndexRange + numNewChunks);
@@ -1166,12 +1379,8 @@ namespace Latios.Kinemation.Systems
                 LastSystemVersion           = lastSystemVersion,
                 PreviousBatchIndex          = -1,
 
-                GpuUploadOperations    = gpuUploadOperations,
-                NumGpuUploadOperations = numGpuUploadOperationsArray,
-
                 LocalToWorldType     = TypeManager.GetTypeIndex<LocalToWorld>(),
                 WorldToLocalType     = TypeManager.GetTypeIndex<WorldToLocal_Tag>(),
-                PrevLocalToWorldType = TypeManager.GetTypeIndex<BuiltinMaterialPropertyUnity_MatrixPreviousM>(),
                 PrevWorldToLocalType = TypeManager.GetTypeIndex<BuiltinMaterialPropertyUnity_MatrixPreviousMI_Tag>(),
 
 #if PROFILE_BURST_JOB_INTERNALS
@@ -1185,19 +1394,21 @@ namespace Latios.Kinemation.Systems
 
             var updateOldJob = new UpdateOldHybridChunksJob
             {
-                HybridChunkInfo        = hybridRenderedChunkType,
-                ChunkWorldRenderBounds = chunkWorldRenderBoundsRO,
-                ChunkHeader            = chunkHeadersRO,
-                LocalToWorld           = localToWorldsRO,
-                LodRange               = lodRangesRO,
-                RootLodRange           = rootLodRangesRO,
-                HybridChunkUpdater     = hybridChunkUpdater,
+                HybridChunkInfo              = hybridRenderedChunkType,
+                ChunkWorldRenderBounds       = chunkWorldRenderBoundsRO,
+                ChunkHeader                  = chunkHeadersRO,
+                LocalToWorld                 = localToWorldsRO,
+                LodRange                     = lodRangesRO,
+                RootLodRange                 = rootLodRangesRO,
+                HybridChunkUpdater           = hybridChunkUpdater,
+                chunkPropertyDirtyMaskHandle = chunkPropertyDirtyMask
             };
 
-            JobHandle updateOldDependencies = JobHandle.CombineDependencies(inputDependencies, EnsureAABBsCleared());
+            Dependency = JobHandle.CombineDependencies(Dependency, EnsureAABBsCleared());
 
             // We need to wait for the job to complete here so we can process the new chunks
-            updateOldJob.Schedule(m_MetaEntitiesForHybridRenderableChunks, updateOldDependencies).Complete();
+            Dependency = updateOldJob.Schedule(m_MetaEntitiesForHybridRenderableChunks, Dependency);
+            CompleteDependency();
 
             // Garbage collect deleted batches before adding new ones to minimize peak memory use.
             Profiler.BeginSample("GarbageCollectUnreferencedBatches");
@@ -1214,10 +1425,11 @@ namespace Latios.Kinemation.Systems
 
                 var updateNewChunksJob = new UpdateNewHybridChunksJob
                 {
-                    NewChunks              = newChunks,
-                    HybridChunkInfo        = hybridRenderedChunkType,
-                    ChunkWorldRenderBounds = chunkWorldRenderBoundsRO,
-                    HybridChunkUpdater     = hybridChunkUpdater,
+                    NewChunks                    = newChunks,
+                    HybridChunkInfo              = hybridRenderedChunkType,
+                    ChunkWorldRenderBounds       = chunkWorldRenderBoundsRO,
+                    HybridChunkUpdater           = hybridChunkUpdater,
+                    chunkPropertyDirtyMaskHandle = chunkPropertyDirtyMask
                 };
 
 #if DEBUG_LOG_INVALID_CHUNKS
@@ -1225,50 +1437,24 @@ namespace Latios.Kinemation.Systems
                     Debug.Log($"Tried to add {numNewChunks} new chunks, but only {numValidNewChunks} were valid, {numNewChunks - numValidNewChunks} were invalid");
 #endif
 
-                hybridCompleted = updateNewChunksJob.Schedule(numValidNewChunks, kNumNewChunksPerThread);
+                Dependency = updateNewChunksJob.Schedule(numValidNewChunks, kNumNewChunksPerThread, Dependency);
             }
 
-            hybridChunkUpdater.ComponentTypes.Dispose(hybridCompleted);
-            newChunks.Dispose(hybridCompleted);
-            numNewChunksArray.Dispose(hybridCompleted);
+            hybridChunkUpdater.ComponentTypes.Dispose(Dependency);
+            newChunks.Dispose(Dependency);
+            numNewChunksArray.Dispose(Dependency);
 
             // TODO: Need to wait for new chunk updating to complete, so there are no more jobs writing to the bitfields.
             // This could be optimized by splitting the memcpy (time consuming part) out from the jobs, because this
             // part would only need to wait for the metadata checking, not the memcpys.
-            hybridCompleted.Complete();
-
-            int numGpuUploadOperations = numGpuUploadOperationsArray[0];
-            Debug.Assert(numGpuUploadOperations <= gpuUploadOperations.Length, "Maximum GPU upload operation count exceeded");
+            CompleteDependency();
 
             BlitGlobalAmbientProbe();
-            ComputeUploadSizeRequirements(
-                numGpuUploadOperations, gpuUploadOperations,
-                out int numOperations, out int totalUploadBytes, out int biggestUploadBytes);
 
-#if DEBUG_LOG_UPLOADS
-            if (numOperations > 0)
-            {
-                Debug.Log($"GPU upload operations: {numOperations}, GPU upload bytes: {totalUploadBytes}");
-            }
-#endif
-            Profiler.BeginSample("StartUpdate");
-            StartUpdate(numOperations, totalUploadBytes, biggestUploadBytes);
-            Profiler.EndSample();
-
-            var uploadsExecuted = new ExecuteGpuUploads
-            {
-                GpuUploadOperations    = gpuUploadOperations,
-                ThreadedSparseUploader = m_ThreadedGPUUploader,
-            }.Schedule(numGpuUploadOperations, 1);
-            numGpuUploadOperationsArray.Dispose();
-            gpuUploadOperations.Dispose(uploadsExecuted);
+            StartUpdate();
 
             Profiler.BeginSample("UpdateBatchProperties");
             UpdateBatchProperties(batchRequiresUpdates, batchHadMovingEntities);
-            Profiler.EndSample();
-
-            Profiler.BeginSample("UploadAllBlits");
-            UploadAllBlits();
             Profiler.EndSample();
 
 #if DEBUG_LOG_CHUNK_CHANGES
@@ -1284,33 +1470,6 @@ namespace Latios.Kinemation.Systems
             unreferencedInternalIndices.Dispose();
             batchRequiresUpdates.Dispose();
             batchHadMovingEntities.Dispose();
-
-            uploadsExecuted.Complete();
-
-            return uploadsExecuted;
-        }
-
-        private void ComputeUploadSizeRequirements(
-            int numGpuUploadOperations, NativeArray<GpuUploadOperation> gpuUploadOperations,
-            out int numOperations, out int totalUploadBytes, out int biggestUploadBytes)
-        {
-            numOperations      = numGpuUploadOperations + m_DefaultValueBlits.Length;
-            totalUploadBytes   = 0;
-            biggestUploadBytes = 0;
-
-            for (int i = 0; i < numGpuUploadOperations; ++i)
-            {
-                var numBytes        = gpuUploadOperations[i].BytesRequiredInUploadBuffer;
-                totalUploadBytes   += numBytes;
-                biggestUploadBytes  = math.max(biggestUploadBytes, numBytes);
-            }
-
-            for (int i = 0; i < m_DefaultValueBlits.Length; ++i)
-            {
-                var numBytes        = m_DefaultValueBlits[i].BytesRequiredInUploadBuffer;
-                totalUploadBytes   += numBytes;
-                biggestUploadBytes  = math.max(biggestUploadBytes, numBytes);
-            }
         }
 
         private int GarbageCollectUnreferencedBatches(NativeArray<long> unreferencedInternalIndices)
@@ -2375,19 +2534,6 @@ namespace Latios.Kinemation.Systems
             }
         }
 
-        private void UploadAllBlits()
-        {
-            UploadBlitJob uploadJob = new UploadBlitJob()
-            {
-                BlitList               = m_DefaultValueBlits,
-                ThreadedSparseUploader = m_ThreadedGPUUploader
-            };
-
-            JobHandle handle = uploadJob.Schedule(m_DefaultValueBlits.Length, 1);
-            handle.Complete();
-            m_DefaultValueBlits.Clear();
-        }
-
         // Return a JobHandle that completes when the AABBs are clear. If the job
         // hasn't been kicked (i.e. it's the first frame), then do it now.
         private JobHandle EnsureAABBsCleared()
@@ -2413,7 +2559,7 @@ namespace Latios.Kinemation.Systems
             m_AABBsCleared.Complete();
         }
 
-        private void StartUpdate(int numOperations, int totalUploadBytes, int biggestUploadBytes)
+        private void StartUpdate()
         {
             var persistanceBytes = m_GPUPersistentAllocator.OnePastHighestUsedAddress;
             if (persistanceBytes > m_PersistentInstanceDataSize)
@@ -2431,40 +2577,7 @@ namespace Latios.Kinemation.Systems
                 if (persistanceBytes > kGPUBufferSizeMax)
                     Debug.LogError(
                         "Hybrid Renderer: Current loaded scenes need more than 1GiB of persistent GPU memory. This is more than some GPU backends can allocate. Try to reduce amount of loaded data.");
-
-                var newBuffer = new ComputeBuffer(
-                    (int)m_PersistentInstanceDataSize / 4,
-                    4,
-                    ComputeBufferType.Raw);
-                m_GPUUploader.ReplaceBuffer(newBuffer, true);
-
-                if (m_GPUPersistentInstanceData != null)
-                    m_GPUPersistentInstanceData.Dispose();
-                m_GPUPersistentInstanceData = newBuffer;
             }
-
-            m_ThreadedGPUUploader =
-                m_GPUUploader.Begin(totalUploadBytes, biggestUploadBytes, numOperations);
-        }
-
-#if DEBUG_LOG_MEMORY_USAGE
-        private static ulong PrevUsedSpace = 0;
-#endif
-
-        private void EndUpdate()
-        {
-            m_GPUUploader.EndAndCommit(m_ThreadedGPUUploader);
-            // Bind compute buffer here globally
-            // TODO: Bind it once to the shader of the batch!
-            Shader.SetGlobalBuffer("unity_DOTSInstanceData", m_GPUPersistentInstanceData);
-
-#if DEBUG_LOG_MEMORY_USAGE
-            if (m_GPUPersistentAllocator.UsedSpace != PrevUsedSpace)
-            {
-                Debug.Log($"GPU memory: {m_GPUPersistentAllocator.UsedSpace / 1024.0 / 1024.0:F4} / {m_GPUPersistentAllocator.Size / 1024.0 / 1024.0:F4}");
-                PrevUsedSpace = m_GPUPersistentAllocator.UsedSpace;
-            }
-#endif
         }
 
         internal void ResizeWithMinusOne(NativeList<int> list, int newLength)
@@ -2539,6 +2652,8 @@ namespace Latios.Kinemation.Systems
             worldBlackboardEntity.AddComponent<CullingContext>();
             worldBlackboardEntity.AddBuffer<CullingPlane>();
             worldBlackboardEntity.AddCollectionComponent(new BrgCullingContext());
+            worldBlackboardEntity.AddBuffer<MaterialPropertyComponentType>();
+            worldBlackboardEntity.AddCollectionComponent(new MaterialPropertiesUploadContext());
 
             m_PersistentInstanceDataSize = kGPUBufferSizeInitial;
 
@@ -2614,8 +2729,6 @@ namespace Latios.Kinemation.Systems
             RegisterMaterialPropertyType<WorldToLocal_Tag>("unity_WorldToObject", 4 * 4 * 4);
 #endif
 
-            // Ifdef guard registering types that might not exist if V2 is disabled.
-
             // Explicitly use a default of all ones for probe occlusion, so stuff doesn't render as black if this isn't set.
             RegisterMaterialPropertyType<BuiltinMaterialPropertyUnity_ProbesOcclusion>(
                 "unity_ProbesOcclusion",
@@ -2653,12 +2766,6 @@ namespace Latios.Kinemation.Systems
                     }
                 }
             }
-
-            m_GPUPersistentInstanceData = new ComputeBuffer(
-                (int)m_PersistentInstanceDataSize / 4,
-                4,
-                ComputeBufferType.Raw);
-            m_GPUUploader = new SparseUploader(m_GPUPersistentInstanceData, kGPUUploaderChunkSize);
 
 #if USE_UNITY_OCCLUSION
             m_OcclusionCulling = new OcclusionCulling();
@@ -2711,29 +2818,36 @@ namespace Latios.Kinemation.Systems
             UpdateGlobalAmbientProbe(new SHProperties(RenderSettings.ambientProbe));
 
             Profiler.BeginSample("CompleteJobs");
-            Dependency.Complete();  // #todo
+            CompleteDependency();  // #todo
             CompleteJobs();
             Profiler.EndSample();
 
-            var done = new JobHandle();
+            int totalChunks;
+
             try
             {
                 Profiler.BeginSample("UpdateHybridV2Batches");
-                done = UpdateHybridV2Batches(Dependency);
-                Profiler.EndSample();
-
-                Profiler.BeginSample("EndUpdate");
-                EndUpdate();
+                UpdateHybridV2Batches(out totalChunks);
                 Profiler.EndSample();
             }
             finally
             {
-                m_GPUUploader.FrameCleanup();
             }
+
+            CompleteDependency();
+
+            worldBlackboardEntity.SetCollectionComponentAndDisposeOld(new MaterialPropertiesUploadContext
+            {
+                chunkProperties              = m_ChunkProperties,
+                componentTypeCache           = m_ComponentTypeCache,
+                defaultValueBlits            = m_DefaultValueBlits,
+                hybridRenderedChunkCount     = totalChunks,
+                requiredPersistentBufferSize = (int)m_PersistentInstanceDataSize
+            });
 
             HybridEditorTools.EndFrame();
 
-            Dependency = done;
+            CompleteDependency();
         }
 
         public JobHandle OnPerformCulling(BatchRendererGroup rendererGroup, BatchCullingContext batchCullingContext)
@@ -2819,6 +2933,7 @@ namespace Latios.Kinemation.Systems
         private struct UpdateOldHybridChunksJob : IJobChunk
         {
             public ComponentTypeHandle<HybridChunkInfo>                   HybridChunkInfo;
+            public ComponentTypeHandle<ChunkMaterialPropertyDirtyMask>    chunkPropertyDirtyMaskHandle;
             [ReadOnly] public ComponentTypeHandle<ChunkWorldRenderBounds> ChunkWorldRenderBounds;
             [ReadOnly] public ComponentTypeHandle<ChunkHeader>            ChunkHeader;
             [ReadOnly] public ComponentTypeHandle<LocalToWorld>           LocalToWorld;
@@ -2833,10 +2948,12 @@ namespace Latios.Kinemation.Systems
                 var hybridChunkInfos = metaChunk.GetNativeArray(HybridChunkInfo);
                 var chunkHeaders     = metaChunk.GetNativeArray(ChunkHeader);
                 var chunkBoundsArray = metaChunk.GetNativeArray(ChunkWorldRenderBounds);
+                var chunkDirtyMasks  = metaChunk.GetNativeArray(chunkPropertyDirtyMaskHandle);
 
                 for (int i = 0; i < metaChunk.Count; ++i)
                 {
                     var chunkInfo   = hybridChunkInfos[i];
+                    var dirtyMask   = chunkDirtyMasks[i];
                     var chunkHeader = chunkHeaders[i];
 
                     var chunk = chunkHeader.ArchetypeChunk;
@@ -2859,8 +2976,9 @@ namespace Latios.Kinemation.Systems
                     if (!isNewChunk)
                         HybridChunkUpdater.MarkBatchForUpdates(chunkInfo.InternalIndex, localToWorldChange);
 
-                    HybridChunkUpdater.ProcessChunk(ref chunkInfo, chunk, chunkBounds);
+                    HybridChunkUpdater.ProcessChunk(ref chunkInfo, ref dirtyMask, chunk, chunkBounds);
                     hybridChunkInfos[i] = chunkInfo;
+                    chunkDirtyMasks[i]  = dirtyMask;
                 }
 
                 HybridChunkUpdater.FinishExecute();
@@ -2871,6 +2989,7 @@ namespace Latios.Kinemation.Systems
         private struct UpdateNewHybridChunksJob : IJobParallelFor
         {
             public ComponentTypeHandle<HybridChunkInfo>                   HybridChunkInfo;
+            public ComponentTypeHandle<ChunkMaterialPropertyDirtyMask>    chunkPropertyDirtyMaskHandle;
             [ReadOnly] public ComponentTypeHandle<ChunkWorldRenderBounds> ChunkWorldRenderBounds;
 
             public NativeArray<ArchetypeChunk> NewChunks;
@@ -2880,13 +2999,15 @@ namespace Latios.Kinemation.Systems
             {
                 var chunk     = NewChunks[index];
                 var chunkInfo = chunk.GetChunkComponentData(HybridChunkInfo);
+                var dirtyMask = chunk.GetChunkComponentData(chunkPropertyDirtyMaskHandle);
 
                 ChunkWorldRenderBounds chunkBounds = chunk.GetChunkComponentData(ChunkWorldRenderBounds);
 
                 Debug.Assert(chunkInfo.Valid, "Attempted to process a chunk with uninitialized Hybrid chunk info");
                 HybridChunkUpdater.MarkBatchForUpdates(chunkInfo.InternalIndex, true);
-                HybridChunkUpdater.ProcessValidChunk(ref chunkInfo, chunk, chunkBounds.Value, true);
-                chunk.SetChunkComponentData(HybridChunkInfo, chunkInfo);
+                HybridChunkUpdater.ProcessValidChunk(ref chunkInfo, ref dirtyMask, chunk, chunkBounds.Value, true);
+                chunk.SetChunkComponentData(HybridChunkInfo,              chunkInfo);
+                chunk.SetChunkComponentData(chunkPropertyDirtyMaskHandle, dirtyMask);
                 HybridChunkUpdater.FinishExecute();
             }
         }
