@@ -21,6 +21,7 @@ namespace Latios.Kinemation.Systems
             GetOrCreateAndAddSystem<FrustumCullSkeletonsSystem>();
             GetOrCreateAndAddSystem<UpdateLODsSystem>();
             GetOrCreateAndAddSystem<FrustumCullSkinnedEntitiesSystem>();
+            GetOrCreateAndAddSystem<AllocateDeformedMeshesSystem>();
             GetOrCreateAndAddSystem<FrustumCullUnskinnedEntitiesSystem>();
             GetOrCreateAndAddSystem<SkinningDispatchSystem>();
             GetOrCreateAndAddSystem<UploadMaterialPropertiesSystem>();
@@ -39,7 +40,6 @@ namespace Latios.Kinemation.Systems
             GetOrCreateAndAddSystem<ClearPerFrameCullingMasksSystem>();
             GetOrCreateAndAddSystem<UpdateSkinnedMeshChunkBoundsSystem>();
             GetOrCreateAndAddSystem<UpdateChunkComputeDeformMetadataSystem>();
-            GetOrCreateAndAddSystem<AllocateDeformedMeshesSystem>();
             GetOrCreateAndAddSystem<ResetPerFrameSkinningMetadataJob>();
             GetOrCreateAndAddSystem<BeginPerFrameMeshSkinningBuffersUploadSystem>();
         }

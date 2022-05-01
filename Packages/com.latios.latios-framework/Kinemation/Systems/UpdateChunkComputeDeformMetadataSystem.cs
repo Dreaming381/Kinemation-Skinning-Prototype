@@ -20,6 +20,8 @@ namespace Latios.Kinemation.Systems
 
         protected override void OnUpdate()
         {
+            worldBlackboardEntity.SetComponentData(new MaxRequiredDeformVertices { verticesCount = 0 });
+
             var lastSystemVersion = LastSystemVersion;
             var blobHandle        = GetComponentTypeHandle<MeshSkinningBlobReference>(true);
             var metaHandle        = GetComponentTypeHandle<ChunkComputeDeformMemoryMetadata>(false);

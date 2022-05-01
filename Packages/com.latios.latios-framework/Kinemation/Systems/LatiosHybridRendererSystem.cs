@@ -529,6 +529,7 @@ namespace Latios.Kinemation.Systems
 #endif
 
             public uint LastSystemVersion;
+            public uint lastSystemVersionForProperties;
             public int  PreviousBatchIndex;
 
             public int LocalToWorldType;
@@ -615,7 +616,7 @@ namespace Latios.Kinemation.Systems
 
                         var skipComponent = isWorldToLocal || isPrevWorldToLocal;
 
-                        bool componentChanged  = chunk.DidChange(type, LastSystemVersion);
+                        bool componentChanged  = chunk.DidChange(type, lastSystemVersionForProperties);
                         bool copyComponentData = (isNewChunk || structuralChanges || componentChanged) && !skipComponent;
 
                         if (copyComponentData)
@@ -807,7 +808,8 @@ namespace Latios.Kinemation.Systems
         private SHProperties                                         m_GlobalAmbientProbe;
         private bool                                                 m_GlobalAmbientProbeDirty;
 
-        int                          m_cullIndexThisFrame = 0;
+        int                          m_cullIndexThisFrame             = 0;
+        uint                         m_lastSystemVersionForProperties = 0;
         KinemationCullingSuperSystem m_cullingSuperSystem;
         #endregion
 
@@ -1369,15 +1371,16 @@ namespace Latios.Kinemation.Systems
 
             var hybridChunkUpdater = new HybridChunkUpdater
             {
-                ComponentTypes              = m_ComponentTypeCache.ToBurstCompatible(Allocator.TempJob),
-                UnreferencedInternalIndices = unreferencedInternalIndices,
-                BatchRequiresUpdates        = batchRequiresUpdates,
-                BatchHadMovingEntities      = batchHadMovingEntities,
-                ChunkProperties             = m_ChunkProperties,
-                BatchMotionInfos            = m_BatchMotionInfos,
-                BatchAABBs                  = m_BatchAABBs,
-                LastSystemVersion           = lastSystemVersion,
-                PreviousBatchIndex          = -1,
+                ComponentTypes                 = m_ComponentTypeCache.ToBurstCompatible(Allocator.TempJob),
+                UnreferencedInternalIndices    = unreferencedInternalIndices,
+                BatchRequiresUpdates           = batchRequiresUpdates,
+                BatchHadMovingEntities         = batchHadMovingEntities,
+                ChunkProperties                = m_ChunkProperties,
+                BatchMotionInfos               = m_BatchMotionInfos,
+                BatchAABBs                     = m_BatchAABBs,
+                LastSystemVersion              = lastSystemVersion,
+                lastSystemVersionForProperties = m_lastSystemVersionForProperties,
+                PreviousBatchIndex             = -1,
 
                 LocalToWorldType     = TypeManager.GetTypeIndex<LocalToWorld>(),
                 WorldToLocalType     = TypeManager.GetTypeIndex<WorldToLocal_Tag>(),
@@ -2880,6 +2883,7 @@ namespace Latios.Kinemation.Systems
             m_cullingSuperSystem.worldBlackboardEntity.UpdateJobDependency<BrgCullingContext>(finalHandle, true);
 
             m_cullIndexThisFrame++;
+            m_lastSystemVersionForProperties = GlobalSystemVersion;
             return finalHandle;
         }
 

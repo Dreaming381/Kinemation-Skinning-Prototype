@@ -40,7 +40,7 @@ namespace Latios.Kinemation
             m_copyVerticesShader    = Resources.Load<ComputeShader>("CopyVertices");
             m_copyByteAddressShader = Resources.Load<ComputeShader>("CopyBytes");
 
-            m_deformBufferPool = new PersistentPool(256 * 1024, 3 * 3 * 4, ComputeBufferType.Structured, null, m_destructionQueue);
+            m_deformBufferPool = new PersistentPool(256 * 1024, 3 * 3 * 4, ComputeBufferType.Structured, m_copyVerticesShader, m_destructionQueue);
             m_meshVerticesPool = new PersistentPool(64 * 1024, 3 * 3 * 4, ComputeBufferType.Structured, m_copyVerticesShader, m_destructionQueue);
             m_meshWeightsPool  = new PersistentPool(2 * 4 * 64 * 1024, 4, ComputeBufferType.Raw, m_copyByteAddressShader, m_destructionQueue);
 
@@ -75,6 +75,8 @@ namespace Latios.Kinemation
 
         public void Dispose()
         {
+            foreach (var b in m_destructionQueue)
+                b.buffer.Dispose();
             m_deformBufferPool.Dispose();
             m_meshVerticesPool.Dispose();
             m_meshWeightsPool.Dispose();

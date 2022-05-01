@@ -72,8 +72,6 @@ namespace Latios.Kinemation
     }
 
     #region Blackboard
-    internal struct LastFrameRenderedNotRenderedVerticesTag : IComponentData { }
-
     internal struct MeshGpuManagerTag : IComponentData { }
 
     internal struct MeshGpuUploadCommand
