@@ -19,11 +19,15 @@ namespace Latios.Kinemation
             var unitySkinning         = world.GetExistingSystem<DeformationsInPresentation>();
             if (unitySkinning != null)
                 unitySkinning.Enabled = false;
+            var unityMatrixPrev       = world.GetExistingSystem<MatrixPreviousSystem>();
+            if (unityMatrixPrev != null)
+                unityMatrixPrev.Enabled = false;
 
             BootstrapTools.InjectSystem(typeof(KinemationRenderUpdateSuperSystem),    world);
             BootstrapTools.InjectSystem(typeof(KinemationRenderSyncPointSuperSystem), world);
             BootstrapTools.InjectSystem(typeof(KinemationFrameSyncPointSuperSystem),  world);
             BootstrapTools.InjectSystem(typeof(LatiosHybridRendererSystem),           world);
+            BootstrapTools.InjectSystem(typeof(UpdateMatrixPreviousSystem),           world);
         }
     }
 }

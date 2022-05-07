@@ -86,11 +86,16 @@ namespace Latios.Kinemation.Systems
 
                         BitField64 lodWordLower = default;
                         BitField64 lodWordUpper = default;
-                        lodWordLower.SetBits(0, true, math.min(chunk.Count, 64));
                         if (chunk.Count > 64)
+                        {
                             lodWordUpper.SetBits(0, true, math.max(chunk.Count - 64, 0));
+                            lodWordLower.Value = ~0UL;
+                        }
                         else
+                        {
                             lodWordLower.SetBits(0, true, chunk.Count);
+                            lodWordUpper.Clear();
+                        }
                         chunkMaskArray[metaIndex] = new ChunkPerCameraSkeletonCullingMask { lower = lodWordLower, upper = lodWordUpper };
                     }
                     else

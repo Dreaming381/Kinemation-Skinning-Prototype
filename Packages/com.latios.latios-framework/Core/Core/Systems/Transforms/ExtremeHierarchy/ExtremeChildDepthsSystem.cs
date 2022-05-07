@@ -6,6 +6,9 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Transforms;
 
+// This system uses PreviousParent in all cases because it is guaranteed to be updated
+// (ParentSystem just ran) and it is updated when the entity is enabled so change filters
+// work correctly.
 namespace Latios.Systems
 {
     [UpdateInGroup(typeof(TransformSystemGroup))]
@@ -33,8 +36,8 @@ namespace Latios.Systems
         {
             state.Dependency = new UpdateDepthsJob
             {
-                parentHandle      = state.GetComponentTypeHandle<Parent>(true),
-                parentCdfe        = state.GetComponentDataFromEntity<Parent>(true),
+                parentHandle      = state.GetComponentTypeHandle<PreviousParent>(true),
+                parentCdfe        = state.GetComponentDataFromEntity<PreviousParent>(true),
                 childHandle       = state.GetBufferTypeHandle<Child>(true),
                 childBfe          = state.GetBufferFromEntity<Child>(true),
                 depthCdfe         = state.GetComponentDataFromEntity<Depth>(false),
@@ -64,8 +67,8 @@ namespace Latios.Systems
         [BurstCompile]
         struct UpdateDepthsJob : IJobEntityBatch
         {
-            [ReadOnly] public ComponentTypeHandle<Parent>                                   parentHandle;
-            [ReadOnly] public ComponentDataFromEntity<Parent>                               parentCdfe;
+            [ReadOnly] public ComponentTypeHandle<PreviousParent>                           parentHandle;
+            [ReadOnly] public ComponentDataFromEntity<PreviousParent>                       parentCdfe;
             [ReadOnly] public BufferTypeHandle<Child>                                       childHandle;
             [ReadOnly] public BufferFromEntity<Child>                                       childBfe;
             [NativeDisableContainerSafetyRestriction] public ComponentDataFromEntity<Depth> depthCdfe;

@@ -51,6 +51,7 @@ namespace Latios.Kinemation.Systems
     {
         protected override void CreateSystems()
         {
+            GetOrCreateAndAddSystem<AddMissingMatrixCacheSystem>();
             GetOrCreateAndAddSystem<AddMissingMasksSystem>();
             GetOrCreateAndAddSystem<SkeletonMeshBindingReactiveSystem>();
         }
@@ -62,6 +63,7 @@ namespace Latios.Kinemation.Systems
     {
         protected override void CreateSystems()
         {
+            GetOrCreateAndAddSystem<AddMissingMatrixCacheSystem>();
             GetOrCreateAndAddSystem<AddMissingMasksSystem>();
             GetOrCreateAndAddSystem<SkeletonMeshBindingReactiveSystem>();
         }

@@ -22,6 +22,11 @@ namespace Latios.Kinemation
         public uint firstVertexIndex;
     }
 
+    internal struct MatrixPreviousCache : IComponentData
+    {
+        public float2x4 cachedFirstTwoRows;
+    }
+
     // All skeletons
     // This is system state to prevent copies on instantiate
     internal struct DependentSkinnedMesh : ISystemStateBufferElementData

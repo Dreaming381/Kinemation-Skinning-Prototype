@@ -339,10 +339,12 @@ namespace Systems
     public class LatiosSimulationSystemGroup : SimulationSystemGroup
     {
         SystemSortingTracker m_tracker;
+        internal bool        skipInDeferred = false;
 
         protected override void OnUpdate()
         {
-            SuperSystem.DoSuperSystemUpdate(this, ref m_tracker);
+            if (!skipInDeferred)
+                SuperSystem.DoSuperSystemUpdate(this, ref m_tracker);
         }
     }
 

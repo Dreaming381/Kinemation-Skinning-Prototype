@@ -9,7 +9,7 @@ using Unity.Rendering;
 using Unity.Transforms;
 using UnityEngine.Profiling;
 
-namespace Latios.Kinemation
+namespace Latios.Kinemation.Systems
 {
     [DisableAutoCreation]
     public partial class UploadMaterialPropertiesSystem : SubSystem
@@ -38,7 +38,7 @@ namespace Latios.Kinemation
             m_GPUUploader = new SparseUploader(m_GPUPersistentInstanceData, kGPUUploaderChunkSize);
         }
 
-        protected override void OnUpdate()
+        protected override unsafe void OnUpdate()
         {
             Profiler.BeginSample("GetBlackboardData");
             var context               = worldBlackboardEntity.GetCollectionComponent<MaterialPropertiesUploadContext>(false);
@@ -168,27 +168,33 @@ namespace Latios.Kinemation
             int numGpuUploadOperations,
             NativeArray<GpuUploadOperation>         gpuUploadOperations,
             NativeArray<DefaultValueBlitDescriptor> defaultValueBlits,
-            out int numOperations,
-            out int totalUploadBytes,
-            out int biggestUploadBytes)
+            out int _numOperations,
+            out int _totalUploadBytes,
+            out int _biggestUploadBytes)
         {
-            numOperations      = numGpuUploadOperations + defaultValueBlits.Length;
-            totalUploadBytes   = 0;
-            biggestUploadBytes = 0;
-
-            for (int i = 0; i < numGpuUploadOperations; ++i)
+            var numOperations      = numGpuUploadOperations + defaultValueBlits.Length;
+            var totalUploadBytes   = 0;
+            var biggestUploadBytes = 0;
+            Job.WithCode(() =>
             {
-                var numBytes        = gpuUploadOperations[i].BytesRequiredInUploadBuffer;
-                totalUploadBytes   += numBytes;
-                biggestUploadBytes  = math.max(biggestUploadBytes, numBytes);
-            }
+                for (int i = 0; i < numGpuUploadOperations; ++i)
+                {
+                    var numBytes        = gpuUploadOperations[i].BytesRequiredInUploadBuffer;
+                    totalUploadBytes   += numBytes;
+                    biggestUploadBytes  = math.max(biggestUploadBytes, numBytes);
+                }
 
-            for (int i = 0; i < defaultValueBlits.Length; ++i)
-            {
-                var numBytes        = defaultValueBlits[i].BytesRequiredInUploadBuffer;
-                totalUploadBytes   += numBytes;
-                biggestUploadBytes  = math.max(biggestUploadBytes, numBytes);
-            }
+                for (int i = 0; i < defaultValueBlits.Length; ++i)
+                {
+                    var numBytes        = defaultValueBlits[i].BytesRequiredInUploadBuffer;
+                    totalUploadBytes   += numBytes;
+                    biggestUploadBytes  = math.max(biggestUploadBytes, numBytes);
+                }
+            }).Run();
+
+            _numOperations      = numOperations;
+            _totalUploadBytes   = totalUploadBytes;
+            _biggestUploadBytes = biggestUploadBytes;
         }
 
         [BurstCompile]
@@ -265,7 +271,7 @@ namespace Latios.Kinemation
                         var isLocalToWorld     = chunkType == LocalToWorldType;
                         var isPrevLocalToWorld = chunkType == PrevLocalToWorldType;
 
-                        bool copyComponentData = typeIndex > 64 ? dirtyMask.upper.IsSet(typeIndex - 64) : dirtyMask.lower.IsSet(typeIndex);
+                        bool copyComponentData = typeIndex >= 64 ? dirtyMask.upper.IsSet(typeIndex - 64) : dirtyMask.lower.IsSet(typeIndex);
 
                         if (copyComponentData)
                         {

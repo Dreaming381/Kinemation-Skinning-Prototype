@@ -438,12 +438,16 @@ namespace Latios
 
             if (world != null)
             {
+                InjectSystem(typeof(DeferredSimulationEndFrameControllerSystem), world);
+
                 ScriptBehaviourUpdateOrder.AppendSystemToPlayerLoop(world.GetExistingSystem<InitializationSystemGroup>(), ref playerLoop, typeof(Initialization));
+                // We add it here for visibility in tools. But really we don't update until EndOfFrame
                 ScriptBehaviourUpdateOrder.AppendSystemToPlayerLoop(world.GetExistingSystem<SimulationSystemGroup>(),     ref playerLoop, typeof(PostLateUpdate));
                 ScriptBehaviourUpdateOrder.AppendSystemToPlayerLoop(world.GetExistingSystem<PresentationSystemGroup>(),   ref playerLoop, typeof(PreLateUpdate));
             }
             PlayerLoop.SetPlayerLoop(playerLoop);
         }
+
         #endregion
 
         #region TypeManager

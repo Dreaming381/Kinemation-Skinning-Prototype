@@ -1,13 +1,15 @@
+using Latios.Unsafe;
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Transforms;
 
-using Latios.Unsafe;
-using Unity.Collections.LowLevel.Unsafe;
-
+// This system uses PreviousParent in all cases because it is guaranteed to be updated
+// (ParentSystem just ran) and it is updated when the entity is enabled so change filters
+// work correctly.
 namespace Latios.Systems
 {
     [DisableAutoCreation]
@@ -30,7 +32,7 @@ namespace Latios.Systems
         ComponentTypeHandle<ChunkDepthMask> m_depthMaskHandle;
         ComponentTypeHandle<Depth>          m_depthHandle;
         ComponentTypeHandle<LocalToParent>  m_ltpHandle;
-        ComponentTypeHandle<Parent>         m_parentHandle;
+        ComponentTypeHandle<PreviousParent> m_parentHandle;
         ComponentTypeHandle<LocalToWorld>   m_ltwHandle;
 
         protected override void OnCreate()
@@ -44,7 +46,7 @@ namespace Latios.Systems
             m_depthMaskHandle = GetComponentTypeHandle<ChunkDepthMask>(false);
             m_depthHandle     = GetComponentTypeHandle<Depth>(true);
             m_ltpHandle       = GetComponentTypeHandle<LocalToParent>(true);
-            m_parentHandle    = GetComponentTypeHandle<Parent>(true);
+            m_parentHandle    = GetComponentTypeHandle<PreviousParent>(true);
             m_ltwHandle       = GetComponentTypeHandle<LocalToWorld>(false);
         }
 
@@ -130,7 +132,7 @@ namespace Latios.Systems
                 ltwCdfe           = ltwCdfe,
                 ltwHandle         = m_ltwHandle,
                 ltwWriteGroupMask = m_childWithParentDependencyMask,
-                parentCdfe        = GetComponentDataFromEntity<Parent>(true)
+                parentCdfe        = GetComponentDataFromEntity<PreviousParent>(true)
             }.Schedule(finalChunkList, 1, Dependency);
         }
 
@@ -267,7 +269,7 @@ namespace Latios.Systems
             [ReadOnly] public NativeArray<ArchetypeChunk> chunkList;
 
             [ReadOnly] public ComponentTypeHandle<LocalToParent>    ltpHandle;
-            [ReadOnly] public ComponentTypeHandle<Parent>           parentHandle;
+            [ReadOnly] public ComponentTypeHandle<PreviousParent>   parentHandle;
             [ReadOnly] public ComponentTypeHandle<Depth>            depthHandle;
             [ReadOnly] public EntityTypeHandle                      entityHandle;
             [ReadOnly] public ComponentDataFromEntity<LocalToWorld> ltwCdfe;
@@ -327,7 +329,7 @@ namespace Latios.Systems
             [NativeDisableContainerSafetyRestriction] public ComponentTypeHandle<LocalToWorld> ltwHandle;
 
             [ReadOnly] public ComponentTypeHandle<LocalToParent>    ltpHandle;
-            [ReadOnly] public ComponentTypeHandle<Parent>           parentHandle;
+            [ReadOnly] public ComponentTypeHandle<PreviousParent>   parentHandle;
             [ReadOnly] public ComponentTypeHandle<Depth>            depthHandle;
             [ReadOnly] public ComponentDataFromEntity<LocalToWorld> ltwCdfe;
 
@@ -359,16 +361,16 @@ namespace Latios.Systems
         [BurstCompile]
         struct UpdateMatricesOfDeepChildrenJob : IJobParallelForDefer
         {
-            [ReadOnly] public NativeArray<ArchetypeChunk>            chunkList;
-            [ReadOnly] public ComponentTypeHandle<LocalToWorld>      ltwHandle;
-            [ReadOnly] public ComponentTypeHandle<Depth>             depthHandle;
-            [ReadOnly] public BufferTypeHandle<Child>                childHandle;
-            [ReadOnly] public BufferFromEntity<Child>                childBfe;
-            [ReadOnly] public ComponentDataFromEntity<LocalToParent> ltpCdfe;
-            [ReadOnly] public ComponentDataFromEntity<Parent>        parentCdfe;
-            [ReadOnly] public EntityQueryMask                        ltwWriteGroupMask;
-            public uint                                              lastSystemVersion;
-            public int                                               depthLevel;
+            [ReadOnly] public NativeArray<ArchetypeChunk>             chunkList;
+            [ReadOnly] public ComponentTypeHandle<LocalToWorld>       ltwHandle;
+            [ReadOnly] public ComponentTypeHandle<Depth>              depthHandle;
+            [ReadOnly] public BufferTypeHandle<Child>                 childHandle;
+            [ReadOnly] public BufferFromEntity<Child>                 childBfe;
+            [ReadOnly] public ComponentDataFromEntity<LocalToParent>  ltpCdfe;
+            [ReadOnly] public ComponentDataFromEntity<PreviousParent> parentCdfe;
+            [ReadOnly] public EntityQueryMask                         ltwWriteGroupMask;
+            public uint                                               lastSystemVersion;
+            public int                                                depthLevel;
 
             [NativeDisableContainerSafetyRestriction]
             public ComponentDataFromEntity<LocalToWorld> ltwCdfe;

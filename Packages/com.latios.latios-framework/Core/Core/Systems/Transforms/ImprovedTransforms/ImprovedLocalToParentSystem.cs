@@ -7,6 +7,9 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Transforms;
 
+// This system uses PreviousParent in all cases because it is guaranteed to be updated
+// (ParentSystem just ran) and it is updated when the entity is enabled so change filters
+// work correctly.
 namespace Latios.Systems
 {
     [DisableAutoCreation]
@@ -24,13 +27,13 @@ namespace Latios.Systems
         [BurstCompile]
         struct UpdateHierarchy : IJobEntityBatch
         {
-            [ReadOnly] public ComponentTypeHandle<LocalToWorld>      LocalToWorldTypeHandle;
-            [ReadOnly] public BufferTypeHandle<Child>                ChildTypeHandle;
-            [ReadOnly] public BufferFromEntity<Child>                ChildFromEntity;
-            [ReadOnly] public ComponentDataFromEntity<Parent>        ParentFromEntity;
-            [ReadOnly] public ComponentDataFromEntity<LocalToParent> LocalToParentFromEntity;
-            [ReadOnly] public EntityQueryMask                        LocalToWorldWriteGroupMask;
-            public uint                                              LastSystemVersion;
+            [ReadOnly] public ComponentTypeHandle<LocalToWorld>       LocalToWorldTypeHandle;
+            [ReadOnly] public BufferTypeHandle<Child>                 ChildTypeHandle;
+            [ReadOnly] public BufferFromEntity<Child>                 ChildFromEntity;
+            [ReadOnly] public ComponentDataFromEntity<PreviousParent> ParentFromEntity;
+            [ReadOnly] public ComponentDataFromEntity<LocalToParent>  LocalToParentFromEntity;
+            [ReadOnly] public EntityQueryMask                         LocalToWorldWriteGroupMask;
+            public uint                                               LastSystemVersion;
 
             [NativeDisableContainerSafetyRestriction]
             public ComponentDataFromEntity<LocalToWorld> LocalToWorldFromEntity;
@@ -144,7 +147,7 @@ namespace Latios.Systems
             var localToWorldType        = state.GetComponentTypeHandle<LocalToWorld>(true);
             var childType               = state.GetBufferTypeHandle<Child>(true);
             var childFromEntity         = state.GetBufferFromEntity<Child>(true);
-            var parentFromEntity        = state.GetComponentDataFromEntity<Parent>(true);
+            var parentFromEntity        = state.GetComponentDataFromEntity<PreviousParent>(true);
             var localToParentFromEntity = state.GetComponentDataFromEntity<LocalToParent>(true);
             var localToWorldFromEntity  = state.GetComponentDataFromEntity<LocalToWorld>();
 
