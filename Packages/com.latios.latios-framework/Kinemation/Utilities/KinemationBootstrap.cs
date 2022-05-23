@@ -27,7 +27,8 @@ namespace Latios.Kinemation
             BootstrapTools.InjectSystem(typeof(KinemationRenderSyncPointSuperSystem), world);
             BootstrapTools.InjectSystem(typeof(KinemationFrameSyncPointSuperSystem),  world);
             BootstrapTools.InjectSystem(typeof(LatiosHybridRendererSystem),           world);
-            BootstrapTools.InjectSystem(typeof(UpdateMatrixPreviousSystem),           world);
+            BootstrapTools.InjectSystem(typeof(KinemationPostRenderSuperSystem),      world);
+            BootstrapTools.InjectSystem(typeof(CopyTransformFromBoneSystem),          world);
         }
     }
 }

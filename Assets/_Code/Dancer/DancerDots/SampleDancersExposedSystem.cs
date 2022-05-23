@@ -44,6 +44,10 @@ namespace Dragons
             {
                 Entities.ForEach((ref Translation trans, ref Rotation rot, ref QuaternionCache cache, in DancerDots dd, in BoneIndex boneIndex) =>
                 {
+                    // Skip root which is offset from reference
+                    if (boneIndex.index == 0)
+                        return;
+
                     int ia = dd.referenceDancerIndexA * boneCount + boneIndex.index;
                     int ib = dd.referenceDancerIndexB * boneCount + boneIndex.index;
                     var ta = translations[ia];
@@ -81,6 +85,10 @@ namespace Dragons
             {
                 Entities.ForEach((ref Translation trans, ref Rotation rot, ref QuaternionCache cache, in DancerDots dd, in BoneIndex boneIndex) =>
                 {
+                    // Skip root which is offset from reference
+                    if (boneIndex.index == 0)
+                        return;
+
                     int ia = dd.referenceDancerIndexA * boneCount + boneIndex.index;
                     int ib = dd.referenceDancerIndexB * boneCount + boneIndex.index;
                     var ta = translations[ia];

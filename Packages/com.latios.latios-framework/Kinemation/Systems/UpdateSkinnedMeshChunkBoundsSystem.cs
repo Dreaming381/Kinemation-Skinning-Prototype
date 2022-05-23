@@ -29,7 +29,7 @@ namespace Latios.Kinemation.Systems
 
         protected override void OnUpdate()
         {
-            var combinedBounds   = new NativeReference<Aabb>(World.Unmanaged.UpdateAllocator.ToAllocator);
+            var combinedBounds   = new NativeReference<Aabb>(World.UpdateAllocator.ToAllocator);
             combinedBounds.Value = new Aabb(float.MaxValue, float.MinValue);
 
             Dependency = new CombineExposedJob
@@ -44,7 +44,7 @@ namespace Latios.Kinemation.Systems
                 combinedBounds = combinedBounds
             }.Schedule(m_optimizedMetaQuery, Dependency);
 
-            Dependency = new ApplyChunkboundsToSkinnedMeshesJob
+            Dependency = new ApplyChunkBoundsToSkinnedMeshesJob
             {
                 handle         = GetComponentTypeHandle<ChunkWorldRenderBounds>(),
                 combinedBounds = combinedBounds
@@ -90,7 +90,7 @@ namespace Latios.Kinemation.Systems
         }
 
         [BurstCompile]
-        struct ApplyChunkboundsToSkinnedMeshesJob : IJobEntityBatch
+        struct ApplyChunkBoundsToSkinnedMeshesJob : IJobEntityBatch
         {
             [ReadOnly] public NativeReference<Aabb>            combinedBounds;
             public ComponentTypeHandle<ChunkWorldRenderBounds> handle;

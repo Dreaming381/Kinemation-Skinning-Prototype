@@ -57,7 +57,6 @@ namespace Dragons
             GetOrCreateAndAddSystem<SampleDancersExposedSystem>();
             GetOrCreateAndAddSystem<SampleDancersOptimizedSystem>();
             GetOrCreateAndAddSystem<Unity.Transforms.TransformSystemGroup>();
-            GetOrCreateAndAddSystem<TempFixExportedTransformsSystem>();
             GetOrCreateAndAddSystem<CorrectDancerFeetSystem>();
         }
     }

@@ -1,3 +1,4 @@
+using Latios.Kinemation.Authoring.Systems;
 using Unity.Entities;
 using Unity.Rendering;
 
@@ -14,7 +15,14 @@ namespace Latios.Kinemation.Authoring
             if (builtinConversionSystem != null)
                 builtinConversionSystem.Enabled = false;
 
-            BootstrapTools.InjectSystem(typeof(KinemationSkinningConversionSystem), world);
+            BootstrapTools.InjectSystem(typeof(DiscoverSkeletonsConversionSystem),            world);
+            BootstrapTools.InjectSystem(typeof(DiscoverUnboundSkinnedMeshesConversionSystem), world);
+            BootstrapTools.InjectSystem(typeof(SkeletonPathsSmartBlobberSystem),              world);
+            BootstrapTools.InjectSystem(typeof(SkeletonHierarchySmartBlobberSystem),          world);
+            BootstrapTools.InjectSystem(typeof(MeshSkinningSmartBlobberSystem),               world);
+            BootstrapTools.InjectSystem(typeof(MeshPathsSmartBlobberSystem),                  world);
+            BootstrapTools.InjectSystem(typeof(KinemationCleanupConversionSystem),            world);
+            BootstrapTools.InjectSystem(typeof(AddMasksConversionSystem),                     world);
         }
     }
 }

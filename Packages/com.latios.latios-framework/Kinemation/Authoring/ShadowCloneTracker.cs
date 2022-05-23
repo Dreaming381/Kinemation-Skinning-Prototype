@@ -6,9 +6,9 @@ namespace Latios.Kinemation.Authoring
     [DisallowMultipleComponent]
     class HideThis
     {
-        public class DeoptimizedCloneTracker : MonoBehaviour
+        public class ShadowCloneTracker : MonoBehaviour
         {
-            public int trackerId = -1;
+            public GameObject source;
         }
     }
 }

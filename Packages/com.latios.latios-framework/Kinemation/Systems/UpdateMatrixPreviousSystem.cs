@@ -12,8 +12,6 @@ namespace Latios.Kinemation.Systems
     // Unity's Hybrid Renderer uploads all MatrixPrevious and then updates them to LocalToWorld in the very next system.
     // However, we upload material properties later, so we would have to wait until all culling is complete before updating.
     // That would be fragile, so instead, we use an intermediate buffer cache component.
-    [UpdateInGroup(typeof(PresentationSystemGroup))]
-    [UpdateAfter(typeof(LatiosHybridRendererSystem))]
     [DisableAutoCreation]
     public partial class UpdateMatrixPreviousSystem : SubSystem
     {

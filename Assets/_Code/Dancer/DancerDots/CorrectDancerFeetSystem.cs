@@ -1,4 +1,5 @@
 using Latios;
+using Latios.Kinemation;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
@@ -14,7 +15,7 @@ namespace Dragons
         {
             var rotCdfe = GetComponentDataFromEntity<Rotation>();
 
-            Entities.ForEach((ref Translation trans, ref DancerFootCache cache, in DancerFootCorrector dfc) =>
+            Entities.WithAll<BoneReference>().ForEach((ref Translation trans, ref DancerFootCache cache, in DancerFootCorrector dfc) =>
             {
                 var hl = GetComponent<LocalToWorld>(dfc.leftFoot).Position;
                 var hr = GetComponent<LocalToWorld>(dfc.rightFoot).Position;

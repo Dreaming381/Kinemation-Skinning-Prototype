@@ -33,7 +33,7 @@ namespace Latios.Kinemation.Systems
             var perCameraMaskHandle = GetComponentTypeHandle<ChunkPerCameraCullingMask>(true);
             var perFrameMaskHandle  = GetComponentTypeHandle<ChunkPerFrameCullingMask>(true);
 
-            var chunkList = World.Unmanaged.UpdateAllocator.AllocateNativeList<ArchetypeChunk>(m_metaQuery.CalculateEntityCountWithoutFiltering());
+            var chunkList = World.UpdateAllocator.AllocateNativeList<ArchetypeChunk>(m_metaQuery.CalculateEntityCountWithoutFiltering());
 
             Dependency = new ChunkPrefixSumJob
             {

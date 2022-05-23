@@ -44,7 +44,7 @@ namespace Dragons
             {
                 Entities.ForEach((ref Translation trans, ref Rotation rot, ref DynamicBuffer<QuaternionCacheElement> cacheBuffer,
                                   ref DynamicBuffer<OptimizedBoneToRoot> boneToRoots,
-                                  in DancerDots dd, in OptimizedBindSkeletonBlobReference blobRef) =>
+                                  in DancerDots dd, in OptimizedSkeletonHierarchyBlobReference blobRef) =>
                 {
                     for (int i = 0; i < boneToRoots.Length; i++)
                     {
@@ -96,8 +96,8 @@ namespace Dragons
 
                         if (i == 0)
                         {
-                            trans.Value    = t;
-                            rot.Value      = r;
+                            //trans.Value    = t;
+                            //rot.Value      = r;
                             boneToRoots[i] = new OptimizedBoneToRoot { boneToRoot = float4x4.identity };
                         }
                     }
@@ -107,7 +107,7 @@ namespace Dragons
             {
                 Entities.ForEach((ref Translation trans, ref Rotation rot,
                                   ref DynamicBuffer<OptimizedBoneToRoot> boneToRoots,
-                                  in DancerDots dd, in OptimizedBindSkeletonBlobReference blobRef) =>
+                                  in DancerDots dd, in OptimizedSkeletonHierarchyBlobReference blobRef) =>
                 {
                     for (int i = 0; i < boneToRoots.Length; i++)
                     {
@@ -124,12 +124,13 @@ namespace Dragons
                         {
                             trs = math.mul(boneToRoots[parentIndex].boneToRoot, trs);
                         }
+
                         boneToRoots[i] = new OptimizedBoneToRoot { boneToRoot = trs };
 
                         if (i == 0)
                         {
-                            trans.Value    = ta;
-                            rot.Value      = ra;
+                            //trans.Value    = ta;
+                            //rot.Value      = ra;
                             boneToRoots[i] = new OptimizedBoneToRoot { boneToRoot = float4x4.identity };
                         }
                     }
@@ -151,19 +152,6 @@ namespace Dragons
                 translations[index] = transform.localPosition;
                 rotations[index]    = transform.localRotation;
             }
-        }
-    }
-
-    public partial class TempFixExportedTransformsSystem : SubSystem
-    {
-        protected override void OnUpdate()
-        {
-            var ltwCdfe = GetComponentDataFromEntity<LocalToWorld>(true);
-            var btrBfe  = GetBufferFromEntity<OptimizedBoneToRoot>(true);
-            Entities.ForEach((ref LocalToWorld ltw, in CopyLocalToWorldFromBone bone, in BoneOwningSkeletonReference root) =>
-            {
-                ltw.Value = math.mul(ltwCdfe[root.skeletonRoot].Value, btrBfe[root.skeletonRoot][bone.boneIndex].boneToRoot);
-            }).WithReadOnly(btrBfe).WithNativeDisableContainerSafetyRestriction(ltwCdfe).ScheduleParallel();
         }
     }
 }

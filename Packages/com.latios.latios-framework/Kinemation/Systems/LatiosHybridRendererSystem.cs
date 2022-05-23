@@ -90,7 +90,7 @@ namespace Latios.Kinemation.Systems
     [AlwaysUpdateSystem]
     [UpdateInGroup(typeof(PresentationSystemGroup))]
     [UpdateAfter(typeof(UpdatePresentationSystemGroup))]
-    [UpdateBefore(typeof(HybridRendererSystem))]
+    [UpdateAfter(typeof(HybridRendererSystem))]
     [DisableAutoCreation]
     public unsafe partial class LatiosHybridRendererSystem : SubSystem
     {

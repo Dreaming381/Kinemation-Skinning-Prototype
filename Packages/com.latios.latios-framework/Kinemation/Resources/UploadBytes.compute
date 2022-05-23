@@ -14,29 +14,29 @@ void UploadBytes(uint threadId : SV_GroupIndex, uint3 groupIds : SV_GroupID)
 {
     uint3 m = _meta.Load3((groupIds.x + _startOffset) * 12);
 
-    uint srcBase = m.x;
-    uint dstBase = m.y;
+    uint srcBase = m.x * _elementSizeInBytes;
+    uint dstBase = m.y * _elementSizeInBytes;
     uint elementCount = (m.z * _elementSizeInBytes) / 16;
     uint elementCountTail = m.z * _elementSizeInBytes - elementCount * 16;
     elementCountTail /= 4;
 
-    uint i;
-    for (i = 0; i < elementCount - 64; i += 64)
+    uint i = 0;
+    for (i = 0; i + 64 < elementCount; i += 64)
     {
-        uint4 val = _src.Load4((srcBase + i + threadId) * 16);
-        _dst.Store4((dstBase + i + threadId) * 16, val);
+        uint4 val = _src.Load4(srcBase + (i + threadId) * 16);
+        _dst.Store4(dstBase + (i + threadId) * 16, val);
     }
 
     if (i + threadId < elementCount)
     {
-        uint4 val = _src.Load4((srcBase + i + threadId) * 16);
-        _dst.Store4((dstBase + i + threadId) * 16, val);
+        uint4 val = _src.Load4(srcBase + (i + threadId) * 16);
+        _dst.Store4(dstBase + (i + threadId) * 16, val);
     }
 
     if (threadId < elementCountTail)
     {
         uint target = elementCount * 16 + threadId * 4;
-        uint val = _src.Load(target);
-        _dst.Store(target, val);
+        uint val = _src.Load(srcBase + target);
+        _dst.Store(dstBase + target, val);
     }
 }

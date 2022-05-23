@@ -38,9 +38,9 @@ namespace Latios.Psyshock.Authoring
 namespace Latios.Psyshock.Authoring.Systems
 {
     [ConverterVersion("latios", 4)]
-    public class ConvexColliderSmartBlobberSystem : SmartBlobberConversionSystem<ConvexColliderBlob, ConvexColliderBakeData, ConvexConverter, Context>
+    public class ConvexColliderSmartBlobberSystem : SmartBlobberConversionSystem<ConvexColliderBlob, ConvexColliderBakeData, ConvexConverter, ConvexContext>
     {
-        protected override void Filter(FilterBlobberData blobberData, ref Context context, NativeArray<int> inputToFilteredMapping)
+        protected override void Filter(FilterBlobberData blobberData, ref ConvexContext context, NativeArray<int> inputToFilteredMapping)
         {
             var hashes = new NativeArray<int>(blobberData.Count, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
             for (int i = 0; i < blobberData.Count; i++)
@@ -66,7 +66,7 @@ namespace Latios.Psyshock.Authoring.Systems
             hashes.Dispose();
         }
 
-        protected override void PostFilter(PostFilterBlobberData blobberData, ref Context context)
+        protected override void PostFilter(PostFilterBlobberData blobberData, ref ConvexContext context)
         {
             var meshList = new List<Mesh>();
 
@@ -109,11 +109,11 @@ namespace Latios.Psyshock.Authoring.Systems
         }
     }
 
-    public struct ConvexConverter : ISmartBlobberContextBuilder<ConvexColliderBlob, Context>
+    public struct ConvexConverter : ISmartBlobberContextBuilder<ConvexColliderBlob, ConvexContext>
     {
         public FixedString128Bytes meshName;
 
-        public unsafe BlobAssetReference<ConvexColliderBlob> BuildBlob(int prefilterIndex, int postfilterIndex, ref Context context)
+        public unsafe BlobAssetReference<ConvexColliderBlob> BuildBlob(int prefilterIndex, int postfilterIndex, ref ConvexContext context)
         {
             if (!context.vector3Cache.IsCreated)
             {
@@ -325,7 +325,7 @@ namespace Latios.Psyshock.Authoring.Systems
         }
     }
 
-    public struct Context : System.IDisposable
+    public struct ConvexContext : System.IDisposable
     {
         [ReadOnly] public Mesh.MeshDataArray meshes;
 

@@ -11,12 +11,17 @@ namespace Latios.Kinemation
 {
     internal class ComputeBufferTrackingPool
     {
+        PersistentPool m_lbsMatsBufferPool;
         PersistentPool m_deformBufferPool;
         PersistentPool m_meshVerticesPool;
         PersistentPool m_meshWeightsPool;
+        PersistentPool m_meshBindPosesPool;
+        PersistentPool m_boneOffsetsPool;
 
         PerFramePool m_meshVerticesUploadPool;
         PerFramePool m_meshWeightsUploadPool;
+        PerFramePool m_meshBindPosesUploadPool;
+        PerFramePool m_boneOffsetsUploadPool;
         PerFramePool m_bonesPool;
         PerFramePool m_skinningMetaPool;
         PerFramePool m_uploadMetaPool;
@@ -24,31 +29,41 @@ namespace Latios.Kinemation
         FencePool m_fencePool;
 
         ComputeShader m_copyVerticesShader;
+        ComputeShader m_copyMatricesShader;
+        //ComputeShader m_copyShortIndicesShader;
         ComputeShader m_copyByteAddressShader;
 
         List<BufferQueuedForDestruction> m_destructionQueue;
 
-        const int kMinMeshVerticesUploadSize = 16 * 1024;
-        const int kMinMeshWeightsUploadSize  = 4 * 16 * 1024;
-        const int kMinBonesSize              = 128 * 128;
-        const int kMinSkinningMetaSize       = 128;
-        const int kMinUploadMetaSize         = 128;
+        const int kMinMeshVerticesUploadSize  = 16 * 1024;
+        const int kMinMeshWeightsUploadSize   = 4 * 16 * 1024;
+        const int kMinMeshBindPosesUploadSize = 256;
+        const int kMinBoneOffsetsUploadSize   = 128;
+        const int kMinBonesSize               = 128 * 128;
+        const int kMinSkinningMetaSize        = 128;
+        const int kMinUploadMetaSize          = 128;
 
         public ComputeBufferTrackingPool()
         {
             m_destructionQueue      = new List<BufferQueuedForDestruction>();
             m_copyVerticesShader    = Resources.Load<ComputeShader>("CopyVertices");
+            m_copyMatricesShader    = Resources.Load<ComputeShader>("CopyMatrices");
             m_copyByteAddressShader = Resources.Load<ComputeShader>("CopyBytes");
 
-            m_deformBufferPool = new PersistentPool(256 * 1024, 3 * 3 * 4, ComputeBufferType.Structured, m_copyVerticesShader, m_destructionQueue);
-            m_meshVerticesPool = new PersistentPool(64 * 1024, 3 * 3 * 4, ComputeBufferType.Structured, m_copyVerticesShader, m_destructionQueue);
-            m_meshWeightsPool  = new PersistentPool(2 * 4 * 64 * 1024, 4, ComputeBufferType.Raw, m_copyByteAddressShader, m_destructionQueue);
+            m_lbsMatsBufferPool = new PersistentPool(1024, 3 * 4 * 4, ComputeBufferType.Structured, m_copyMatricesShader, m_destructionQueue);
+            m_deformBufferPool  = new PersistentPool(256 * 1024, 3 * 3 * 4, ComputeBufferType.Structured, m_copyVerticesShader, m_destructionQueue);
+            m_meshVerticesPool  = new PersistentPool(64 * 1024, 3 * 3 * 4, ComputeBufferType.Structured, m_copyVerticesShader, m_destructionQueue);
+            m_meshWeightsPool   = new PersistentPool(2 * 4 * 64 * 1024, 4, ComputeBufferType.Raw, m_copyByteAddressShader, m_destructionQueue);
+            m_meshBindPosesPool = new PersistentPool(1024, 3 * 4 * 4, ComputeBufferType.Structured, m_copyMatricesShader, m_destructionQueue);
+            m_boneOffsetsPool   = new PersistentPool(512, 4, ComputeBufferType.Raw, m_copyByteAddressShader, m_destructionQueue);
 
-            m_meshVerticesUploadPool = new PerFramePool(3 * 3 * 4, ComputeBufferType.Structured);
-            m_meshWeightsUploadPool  = new PerFramePool(4, ComputeBufferType.Raw);
-            m_bonesPool              = new PerFramePool(3 * 4 * 4, ComputeBufferType.Structured);
-            m_skinningMetaPool       = new PerFramePool(4, ComputeBufferType.Raw);
-            m_uploadMetaPool         = new PerFramePool(4, ComputeBufferType.Raw);
+            m_meshVerticesUploadPool  = new PerFramePool(3 * 3 * 4, ComputeBufferType.Structured);
+            m_meshWeightsUploadPool   = new PerFramePool(4, ComputeBufferType.Raw);
+            m_meshBindPosesUploadPool = new PerFramePool(3 * 4 * 4, ComputeBufferType.Structured);
+            m_boneOffsetsUploadPool   = new PerFramePool(4, ComputeBufferType.Raw);
+            m_bonesPool               = new PerFramePool(3 * 4 * 4, ComputeBufferType.Structured);
+            m_skinningMetaPool        = new PerFramePool(4, ComputeBufferType.Raw);
+            m_uploadMetaPool          = new PerFramePool(4, ComputeBufferType.Raw);
 
             m_fencePool = new FencePool(true);
         }
@@ -58,6 +73,8 @@ namespace Latios.Kinemation
             m_fencePool.Update();
             m_meshVerticesUploadPool.CollectFinishedBuffers(m_fencePool.RecoveredFrameId);
             m_meshWeightsUploadPool.CollectFinishedBuffers(m_fencePool.RecoveredFrameId);
+            m_meshBindPosesUploadPool.CollectFinishedBuffers(m_fencePool.RecoveredFrameId);
+            m_boneOffsetsUploadPool.CollectFinishedBuffers(m_fencePool.RecoveredFrameId);
             m_bonesPool.CollectFinishedBuffers(m_fencePool.RecoveredFrameId);
             m_skinningMetaPool.CollectFinishedBuffers(m_fencePool.RecoveredFrameId);
             m_uploadMetaPool.CollectFinishedBuffers(m_fencePool.RecoveredFrameId);
@@ -77,15 +94,25 @@ namespace Latios.Kinemation
         {
             foreach (var b in m_destructionQueue)
                 b.buffer.Dispose();
+            m_lbsMatsBufferPool.Dispose();
             m_deformBufferPool.Dispose();
             m_meshVerticesPool.Dispose();
             m_meshWeightsPool.Dispose();
+            m_meshBindPosesPool.Dispose();
             m_meshVerticesUploadPool.Dispose();
             m_meshWeightsUploadPool.Dispose();
+            m_meshBindPosesUploadPool.Dispose();
+            m_boneOffsetsPool.Dispose();
+            m_boneOffsetsUploadPool.Dispose();
             m_bonesPool.Dispose();
             m_skinningMetaPool.Dispose();
             m_uploadMetaPool.Dispose();
             m_fencePool.Dispose();
+        }
+
+        public ComputeBuffer GetLbsMatsBuffer(int requiredSize)
+        {
+            return m_lbsMatsBufferPool.GetBuffer(requiredSize, m_fencePool.CurrentFrameId);
         }
 
         public ComputeBuffer GetDeformBuffer(int requiredSize)
@@ -103,6 +130,16 @@ namespace Latios.Kinemation
             return m_meshWeightsPool.GetBuffer(requiredSize * 2, m_fencePool.CurrentFrameId);
         }
 
+        public ComputeBuffer GetMeshBindPosesBuffer(int requiredSize)
+        {
+            return m_meshBindPosesPool.GetBuffer(requiredSize, m_fencePool.CurrentFrameId);
+        }
+
+        public ComputeBuffer GetBoneOffsetsBuffer(int requiredSize)
+        {
+            return m_boneOffsetsPool.GetBuffer(requiredSize, m_fencePool.CurrentFrameId);
+        }
+
         public ComputeBuffer GetMeshVerticesUploadBuffer(int requiredSize)
         {
             requiredSize = math.max(requiredSize, kMinMeshVerticesUploadSize);
@@ -113,6 +150,18 @@ namespace Latios.Kinemation
         {
             requiredSize = math.max(requiredSize, kMinMeshWeightsUploadSize);
             return m_meshWeightsUploadPool.GetBuffer(requiredSize * 2, m_fencePool.CurrentFrameId);
+        }
+
+        public ComputeBuffer GetMeshBindPosesUploadBuffer(int requiredSize)
+        {
+            requiredSize = math.max(requiredSize, kMinMeshBindPosesUploadSize);
+            return m_meshBindPosesUploadPool.GetBuffer(requiredSize, m_fencePool.CurrentFrameId);
+        }
+
+        public ComputeBuffer GetBoneOffsetsUploadBuffer(int requiredSize)
+        {
+            requiredSize = math.max(requiredSize, kMinBoneOffsetsUploadSize);
+            return m_boneOffsetsUploadPool.GetBuffer(requiredSize, m_fencePool.CurrentFrameId);
         }
 
         public ComputeBuffer GetBonesBuffer(int requiredSize)

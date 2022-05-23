@@ -20,23 +20,12 @@ namespace Latios.Kinemation
     }
 
     // Usage: Read Only (No exceptions!)
-    // This is marked WriteGroup to ensure normal unskinned meshes can use write group filtering.
-    // Include this if you choose to use WriteGroup filtering yourself.
+    // You can read from this to figure out if a previous culling pass rendered an entity.
     [WriteGroup(typeof(ChunkPerCameraCullingMask))]
     public struct ChunkPerFrameCullingMask : IComponentData
     {
         public BitField64 lower;
         public BitField64 upper;
-    }
-
-    // Usage: Read Only (No exceptions!)
-    // This is public such that you can include it in queries when using WriteGroup filtering yourself.
-    [WriteGroup(typeof(ChunkPerCameraCullingMask))]
-    public struct ChunkComputeDeformMemoryMetadata : IComponentData
-    {
-        internal int vertexStartPrefixSum;
-        internal int verticesPerMesh;
-        internal int entitiesInChunk;
     }
 
     // Usage: Read Only (No exceptions!)

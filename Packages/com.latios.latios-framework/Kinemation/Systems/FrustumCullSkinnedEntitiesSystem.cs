@@ -28,7 +28,7 @@ namespace Latios.Kinemation.Systems
             {
                 hybridChunkInfoHandle   = GetComponentTypeHandle<HybridChunkInfo>(true),
                 chunkHeaderHandle       = GetComponentTypeHandle<ChunkHeader>(true),
-                rootHandle              = GetComponentTypeHandle<BindSkeletonRoot>(true),
+                dependentHandle         = GetComponentTypeHandle<SkeletonDependent>(true),
                 chunkSkeletonMaskHandle = GetComponentTypeHandle<ChunkPerCameraSkeletonCullingMask>(true),
                 sife                    = GetStorageInfoFromEntity(),
                 chunkMaskHandle         = GetComponentTypeHandle<ChunkPerCameraCullingMask>(false)
@@ -40,7 +40,7 @@ namespace Latios.Kinemation.Systems
         {
             [ReadOnly] public ComponentTypeHandle<HybridChunkInfo>                   hybridChunkInfoHandle;
             [ReadOnly] public ComponentTypeHandle<ChunkHeader>                       chunkHeaderHandle;
-            [ReadOnly] public ComponentTypeHandle<BindSkeletonRoot>                  rootHandle;
+            [ReadOnly] public ComponentTypeHandle<SkeletonDependent>                 dependentHandle;
             [ReadOnly] public ComponentTypeHandle<ChunkPerCameraSkeletonCullingMask> chunkSkeletonMaskHandle;
 
             [ReadOnly] public StorageInfoFromEntity sife;
@@ -74,7 +74,7 @@ namespace Latios.Kinemation.Systems
 
                         var chunk = chunkHeader.ArchetypeChunk;
 
-                        var rootRefs = chunk.GetNativeArray(rootHandle);
+                        var rootRefs = chunk.GetNativeArray(dependentHandle);
 
                         var        lodWord = chunkEntityLodEnabled.Enabled[0];
                         BitField64 maskWordLower;

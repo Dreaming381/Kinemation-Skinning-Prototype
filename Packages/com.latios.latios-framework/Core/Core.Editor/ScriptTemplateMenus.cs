@@ -29,7 +29,7 @@ internal class ScriptTemplateMenus
     [MenuItem("Assets/Create/Latios/Bootstrap/Standard - Explicit Workflow")]
     public static void CreateStandardExplicitBootstrap()
     {
-        CreateScriptFromTemplate("MinimalExplicitBootstrap.txt", "LatiosBootstrap.cs");
+        CreateScriptFromTemplate("StandardExplicitBootstrap.txt", "LatiosBootstrap.cs");
     }
 
     [MenuItem("Assets/Create/Latios/Bootstrap/Dreaming Specialized")]

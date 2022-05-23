@@ -22,8 +22,9 @@ namespace Latios.Kinemation.Systems
             GetOrCreateAndAddSystem<UpdateLODsSystem>();
             GetOrCreateAndAddSystem<FrustumCullSkinnedEntitiesSystem>();
             GetOrCreateAndAddSystem<AllocateDeformedMeshesSystem>();
-            GetOrCreateAndAddSystem<FrustumCullUnskinnedEntitiesSystem>();
             GetOrCreateAndAddSystem<SkinningDispatchSystem>();
+            GetOrCreateAndAddSystem<FrustumCullUnskinnedEntitiesSystem>();
+            GetOrCreateAndAddSystem<CopySkinWithCullingSystem>();
             GetOrCreateAndAddSystem<UploadMaterialPropertiesSystem>();
             GetOrCreateAndAddSystem<UpdateVisibilitiesSystem>();
         }
@@ -32,16 +33,28 @@ namespace Latios.Kinemation.Systems
     [UpdateInGroup(typeof(UpdatePresentationSystemGroup))]
     [UpdateAfter(typeof(RenderBoundsUpdateSystem))]
     [DisableAutoCreation]
-    public class KinemationRenderUpdateSuperSystem : SuperSystem
+    public class KinemationRenderUpdateSuperSystem : RootSuperSystem
     {
         protected override void CreateSystems()
         {
             GetOrCreateAndAddSystem<UpdateSkeletonBoundsSystem>();
-            GetOrCreateAndAddSystem<ClearPerFrameCullingMasksSystem>();
             GetOrCreateAndAddSystem<UpdateSkinnedMeshChunkBoundsSystem>();
+            GetOrCreateAndAddSystem<BeginPerFrameMeshSkinningBuffersUploadSystem>();
+        }
+    }
+
+    [UpdateInGroup(typeof(PresentationSystemGroup))]
+    [UpdateAfter(typeof(LatiosHybridRendererSystem))]
+    [DisableAutoCreation]
+    public class KinemationPostRenderSuperSystem : SuperSystem
+    {
+        protected override void CreateSystems()
+        {
+            GetOrCreateAndAddSystem<EndPerFrameMeshSkinningBuffersUploadSystem>();
+            GetOrCreateAndAddSystem<ClearPerFrameCullingMasksSystem>();
             GetOrCreateAndAddSystem<UpdateChunkComputeDeformMetadataSystem>();
             GetOrCreateAndAddSystem<ResetPerFrameSkinningMetadataJob>();
-            GetOrCreateAndAddSystem<BeginPerFrameMeshSkinningBuffersUploadSystem>();
+            GetOrCreateAndAddSystem<UpdateMatrixPreviousSystem>();
         }
     }
 

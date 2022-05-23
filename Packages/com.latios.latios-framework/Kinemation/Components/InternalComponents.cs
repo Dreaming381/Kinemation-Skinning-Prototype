@@ -1,19 +1,27 @@
 using System;
 using System.Collections.Generic;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Rendering;
+using Unity.Transforms;
 using UnityEngine.Rendering;
 
 namespace Latios.Kinemation
 {
     // Meshes
+    [WriteGroup(typeof(LocalToParent))]
     internal struct SkeletonDependent : ISystemStateComponentData
     {
-        public EntityWith<SkeletonRootTag>          root;
-        public BlobAssetReference<MeshSkinningBlob> skinningBlob;
+        public EntityWith<SkeletonRootTag>                  root;
+        public BlobAssetReference<MeshSkinningBlob>         skinningBlob;
+        public BlobAssetReference<MeshBindingPathsBlob>     meshBindingBlob;
+        public BlobAssetReference<SkeletonBindingPathsBlob> skeletonBindingBlob;
+        public int                                          meshEntryIndex;
+        public int                                          boneOffsetEntryIndex;
+        public float                                        shaderEffectRadialBounds;
     }
 
     [MaterialProperty("_ComputeMeshIndex", MaterialPropertyFormat.Float)]
@@ -27,14 +35,33 @@ namespace Latios.Kinemation
         public float2x4 cachedFirstTwoRows;
     }
 
+    [WriteGroup(typeof(ChunkPerCameraCullingMask))]
+    internal struct ChunkComputeDeformMemoryMetadata : IComponentData
+    {
+        internal int vertexStartPrefixSum;
+        internal int verticesPerMesh;
+        internal int entitiesInChunk;
+    }
+
+    [WriteGroup(typeof(ChunkPerCameraCullingMask))]
+    internal struct ChunkCopySkinShaderData : IComponentData
+    {
+        // Todo: Can chunk components be tags?
+        internal byte dummy;
+    }
+
     // All skeletons
     // This is system state to prevent copies on instantiate
+    [InternalBufferCapacity(1)]
     internal struct DependentSkinnedMesh : ISystemStateBufferElementData
     {
         public EntityWith<SkeletonDependent> skinnedMesh;
         public int                           meshVerticesStart;
-        public int                           meshVerticesCount;  // Todo: Replace with blob for mesh splitting?
+        public int                           meshVerticesCount;
         public int                           meshWeightsStart;
+        public int                           meshBindPosesStart;
+        public int                           meshBindPosesCount;
+        public int                           boneOffsetsStart;
     }
 
     [MaximumChunkCapacity(128)]
@@ -45,7 +72,7 @@ namespace Latios.Kinemation
     }
 
     // Exposed skeletons
-    internal struct ExposedSkeletonCullingIndex : IComponentData
+    internal struct ExposedSkeletonCullingIndex : ISystemStateComponentData
     {
         public int cullingIndex;
     }
@@ -53,6 +80,12 @@ namespace Latios.Kinemation
     internal struct BoneCullingIndex : IComponentData
     {
         public int cullingIndex;
+    }
+
+    internal struct BoneBounds : IComponentData
+    {
+        public float radialOffsetInBoneSpace;
+        public float radialOffsetInWorldSpace;
     }
 
     internal struct BoneWorldBounds : IComponentData
@@ -66,9 +99,26 @@ namespace Latios.Kinemation
     }
 
     // Optimized skeletons
+
+    // There's currently no other system state for optimized skeletons, so we need something
+    // to track conversions between skeleton types.
+    internal struct OptimizedSkeletonTag : ISystemStateComponentData { }
+
+    internal struct SkeletonShaderBoundsOffset : IComponentData
+    {
+        public float radialBoundsInWorldSpace;
+    }
+
     internal struct SkeletonWorldBounds : IComponentData
     {
         public AABB bounds;
+    }
+
+    // The length of this should be 0 when no meshes are bound.
+    [InternalBufferCapacity(0)]
+    internal struct OptimizedBoneBounds : IBufferElementData
+    {
+        public float radialOffsetInBoneSpace;
     }
 
     internal struct ChunkSkeletonWorldBounds : IComponentData
@@ -77,6 +127,27 @@ namespace Latios.Kinemation
     }
 
     #region Blackboard
+    internal struct ExposedCullingIndexManagerTag : IComponentData { }
+
+    internal struct ExposedCullingIndexManager : ICollectionComponent
+    {
+        public NativeHashMap<Entity, int>                                  skeletonToCullingIndexMap;
+        public NativeReference<int>                                        maxIndex;
+        public NativeList<int>                                             indexFreeList;
+        public NativeHashMap<int, EntityWithBuffer<DependentSkinnedMesh> > cullingIndexToSkeletonMap;
+
+        public Type AssociatedComponentType => typeof(ExposedCullingIndexManagerTag);
+
+        public JobHandle Dispose(JobHandle inputDeps)
+        {
+            inputDeps = skeletonToCullingIndexMap.Dispose(inputDeps);
+            inputDeps = maxIndex.Dispose(inputDeps);
+            inputDeps = indexFreeList.Dispose(inputDeps);
+            inputDeps = cullingIndexToSkeletonMap.Dispose(inputDeps);
+            return inputDeps;
+        }
+    }
+
     internal struct MeshGpuManagerTag : IComponentData { }
 
     internal struct MeshGpuUploadCommand
@@ -84,124 +155,142 @@ namespace Latios.Kinemation
         public BlobAssetReference<MeshSkinningBlob> blob;
         public int                                  verticesIndex;
         public int                                  weightsIndex;
+        public int                                  bindPosesIndex;
+    }
+
+    internal struct MeshGpuEntry
+    {
+        public BlobAssetReference<MeshSkinningBlob> blob;
+        public int                                  referenceCount;
+        public int                                  verticesStart;
+        public int                                  weightsStart;
+        public int                                  bindPosesStart;
+    }
+
+    internal struct MeshGpuRequiredSizes
+    {
+        public int requiredVertexBufferSize;
+        public int requiredWeightBufferSize;
+        public int requiredBindPoseBufferSize;
+        public int requiredVertexUploadSize;
+        public int requiredWeightUploadSize;
+        public int requiredBindPoseUploadSize;
     }
 
     internal struct MeshGpuManager : ICollectionComponent
     {
-        // Todo: Bug in BlobAssetReference.GetHashCode makes it not Burst-compatible.
-        // So we need to wrap it and override the GetHashCode function.
-        // Maybe we could provide an IHasher version of NativeHashMap similar to STL?
-        public NativeHashMap<MeshSkinningBlobReference, int> blobIndexMap;
+        public NativeHashMap<BlobAssetReference<MeshSkinningBlob>, int> blobIndexMap;
 
-        public NativeList<int> referenceCounts;
-        public NativeList<int> verticesStarts;
-        public NativeList<int> weightsStarts;
+        public NativeList<MeshGpuEntry> entries;
+        public NativeList<int>          indexFreeList;
+        public NativeList<int2>         verticesGaps;
+        public NativeList<int2>         weightsGaps;
+        public NativeList<int2>         bindPosesGaps;
 
-        public NativeList<int>  indexFreeList;
-        public NativeList<int2> verticesGaps;
-        public NativeList<int2> weightsGaps;
-
-        public NativeList<MeshGpuUploadCommand> uploadCommands;
-        public NativeReference<int4>            requiredVertexWeightsbufferSizesAndUploadSizes;  // vertex buffer, weight buffer, vertex upload, weight upload
+        public NativeList<MeshGpuUploadCommand>      uploadCommands;
+        public NativeReference<MeshGpuRequiredSizes> requiredBufferSizes;
 
         public Type AssociatedComponentType => typeof(MeshGpuManagerTag);
 
         public JobHandle Dispose(JobHandle inputDeps)
         {
             inputDeps = blobIndexMap.Dispose(inputDeps);
-            inputDeps = referenceCounts.Dispose(inputDeps);
-            inputDeps = verticesStarts.Dispose(inputDeps);
-            inputDeps = weightsStarts.Dispose(inputDeps);
+            inputDeps = entries.Dispose(inputDeps);
             inputDeps = indexFreeList.Dispose(inputDeps);
             inputDeps = verticesGaps.Dispose(inputDeps);
             inputDeps = weightsGaps.Dispose(inputDeps);
+            inputDeps = bindPosesGaps.Dispose(inputDeps);
             inputDeps = uploadCommands.Dispose(inputDeps);
-            inputDeps = requiredVertexWeightsbufferSizesAndUploadSizes.Dispose(inputDeps);
+            inputDeps = requiredBufferSizes.Dispose(inputDeps);
             return inputDeps;
         }
     }
 
-    // Todo: Combine with above once ref collections are supported
-    internal struct MeshGpuUploadBuffers : ICollectionComponent
+    internal struct BoneOffsetsGpuManagerTag : IComponentData { }
+
+    internal struct BoneOffsetsEntry
+    {
+        public uint2 hash;
+        public int   pathsReferences;
+        public int   overridesReferences;
+        public int   start;
+        public short count;
+        public short gpuCount;
+        public bool  isValid;
+    }
+
+    internal struct PathMappingPair : IEquatable<PathMappingPair>
+    {
+        public BlobAssetReference<SkeletonBindingPathsBlob> skeletonPaths;
+        public BlobAssetReference<MeshBindingPathsBlob>     meshPaths;
+
+        public bool Equals(PathMappingPair other)
+        {
+            return skeletonPaths.Equals(other.skeletonPaths) && meshPaths.Equals(other.meshPaths);
+        }
+
+        public override int GetHashCode()
+        {
+            return new int2(skeletonPaths.GetHashCode(), meshPaths.GetHashCode()).GetHashCode();
+        }
+    }
+
+    internal struct BoneOffsetsGpuManager : ICollectionComponent
+    {
+        public NativeList<BoneOffsetsEntry> entries;
+        public NativeList<short>            offsets;
+        public NativeList<int>              indexFreeList;
+        public NativeList<int2>             gaps;
+        public NativeReference<bool>        isDirty;
+
+        public NativeHashMap<uint2, int>           hashToEntryMap;
+        public NativeHashMap<PathMappingPair, int> pathPairToEntryMap;
+
+        public Type AssociatedComponentType => typeof(BoneOffsetsGpuManagerTag);
+
+        public JobHandle Dispose(JobHandle inputDeps)
+        {
+            inputDeps = entries.Dispose(inputDeps);
+            inputDeps = offsets.Dispose(inputDeps);
+            inputDeps = indexFreeList.Dispose(inputDeps);
+            inputDeps = gaps.Dispose(inputDeps);
+            inputDeps = isDirty.Dispose(inputDeps);
+            inputDeps = hashToEntryMap.Dispose(inputDeps);
+            inputDeps = pathPairToEntryMap.Dispose(inputDeps);
+            return inputDeps;
+        }
+    }
+
+    internal struct GpuUploadBuffersTag : IComponentData { }
+
+    internal struct GpuUploadBuffers : ICollectionComponent
     {
         // Not owned by this
         public UnityEngine.ComputeBuffer verticesBuffer;
         public UnityEngine.ComputeBuffer weightsBuffer;
+        public UnityEngine.ComputeBuffer bindPosesBuffer;
+        public UnityEngine.ComputeBuffer boneOffsetsBuffer;
         public UnityEngine.ComputeBuffer verticesUploadBuffer;
         public UnityEngine.ComputeBuffer weightsUploadBuffer;
+        public UnityEngine.ComputeBuffer bindPosesUploadBuffer;
+        public UnityEngine.ComputeBuffer boneOffsetsUploadBuffer;
         public UnityEngine.ComputeBuffer verticesUploadMetaBuffer;
         public UnityEngine.ComputeBuffer weightsUploadMetaBuffer;
+        public UnityEngine.ComputeBuffer bindPosesUploadMetaBuffer;
+        public UnityEngine.ComputeBuffer boneOffsetsUploadMetaBuffer;
         public int                       verticesUploadBufferWriteCount;
         public int                       weightsUploadBufferWriteCount;
+        public int                       bindPosesUploadBufferWriteCount;
+        public int                       boneOffsetsUploadBufferWriteCount;
         public int                       verticesUploadMetaBufferWriteCount;
         public int                       weightsUploadMetaBufferWriteCount;
+        public int                       bindPosesUploadMetaBufferWriteCount;
+        public int                       boneOffsetsUploadMetaBufferWriteCount;
         public bool                      needsCommitment;
 
-        public UnityEngine.ComputeShader uploadVerticesShader;
-        public UnityEngine.ComputeShader uploadBytesShader;
-
-        public Type AssociatedComponentType => typeof(MeshGpuManagerTag);
+        public Type AssociatedComponentType => typeof(GpuUploadBuffersTag);
 
         public JobHandle Dispose(JobHandle inputDeps) => inputDeps;
-
-        public void Dispatch()
-        {
-            if (!needsCommitment)
-                return;
-
-            verticesUploadBuffer.EndWrite<VertexToSkin>(verticesUploadBufferWriteCount);
-            verticesUploadMetaBuffer.EndWrite<uint3>(verticesUploadMetaBufferWriteCount);
-            weightsUploadBuffer.EndWrite<BoneWeightLinkedList>(weightsUploadBufferWriteCount);
-            weightsUploadMetaBuffer.EndWrite<uint3>(weightsUploadMetaBufferWriteCount);
-
-            uploadVerticesShader.SetBuffer(0, "_dst",  verticesBuffer);
-            uploadVerticesShader.SetBuffer(0, "_src",  verticesUploadBuffer);
-            uploadVerticesShader.SetBuffer(0, "_meta", verticesUploadMetaBuffer);
-
-            for (int dispatchesRemaining = verticesUploadMetaBufferWriteCount, offset = 0; dispatchesRemaining > 0;)
-            {
-                int dispatchCount = math.min(dispatchesRemaining, 65535);
-                uploadVerticesShader.SetInt("_startOffset", offset);
-                uploadVerticesShader.Dispatch(0, dispatchCount, 1, 1);
-                offset              += dispatchCount;
-                dispatchesRemaining -= dispatchCount;
-            }
-
-            uploadBytesShader.SetBuffer(0, "_dst",  weightsBuffer);
-            uploadBytesShader.SetBuffer(0, "_src",  weightsUploadBuffer);
-            uploadBytesShader.SetBuffer(0, "_meta", weightsUploadMetaBuffer);
-            uploadBytesShader.SetInt("_elementSizeInBytes", 8);
-
-            for (int dispatchesRemaining = weightsUploadMetaBufferWriteCount, offset = 0; dispatchesRemaining > 0;)
-            {
-                int dispatchCount = math.min(dispatchesRemaining, 65535);
-                uploadBytesShader.SetInt("_startOffset", offset);
-                uploadBytesShader.Dispatch(0, dispatchCount, 1, 1);
-                offset              += dispatchCount;
-                dispatchesRemaining -= dispatchCount;
-            }
-
-            needsCommitment = false;
-        }
-    }
-
-    internal struct ExposedCullingIndexManagerTag : IComponentData { }
-
-    internal struct ExposedCullingIndexManager : ICollectionComponent
-    {
-        public NativeHashMap<Entity, int> skeletonIndexMap;
-        public NativeReference<int>       maxIndex;
-        public NativeList<int>            indexFreeList;
-
-        public Type AssociatedComponentType => typeof(ExposedCullingIndexManagerTag);
-
-        public JobHandle Dispose(JobHandle inputDeps)
-        {
-            inputDeps = skeletonIndexMap.Dispose(inputDeps);
-            inputDeps = maxIndex.Dispose(inputDeps);
-            inputDeps = indexFreeList.Dispose(inputDeps);
-            return inputDeps;
-        }
     }
 
     internal struct ComputeBufferManagerTag : IComponentData { }

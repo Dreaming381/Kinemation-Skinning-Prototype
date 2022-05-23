@@ -90,12 +90,12 @@ namespace Latios.Authoring.Systems
                 }
                 m_inputsAreLocked = false;
             }
-            catch (System.Exception e)
+            catch (System.Exception)
             {
                 converters.Dispose();
                 indices.Dispose();
                 m_inputsAreLocked = false;
-                throw e;
+                throw;
             }
 
             // Step 2: Build blobs and hashes

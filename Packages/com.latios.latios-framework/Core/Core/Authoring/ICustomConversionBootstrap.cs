@@ -30,6 +30,14 @@ namespace Latios.Authoring
         bool InitializeConversion(World conversionWorldWithGroupsAndMappingSystems, CustomConversionSettings settings, ref List<System.Type> filteredSystems);
     }
 
+    public static class GameObjectConversionGetSettingsExtension
+    {
+        public static CustomConversionSettings GetSettings(this GameObjectConversionSystem system)
+        {
+            return system.World.GetExistingSystem<ConversionBootstrapUtilities.CustomConversionBootstrapSystem>().customConversionSettings;
+        }
+    }
+
 #if UNITY_EDITOR
     [UnityEditor.InitializeOnLoad]
 #endif
@@ -95,8 +103,10 @@ namespace Latios.Authoring
         }
 
         [DisableAutoCreation]
-        class CustomConversionBootstrapSystem : GameObjectConversionSystem
+        public class CustomConversionBootstrapSystem : GameObjectConversionSystem
         {
+            public CustomConversionSettings customConversionSettings { get; private set; }
+
             protected override void OnCreate()
             {
                 base.OnCreate();
@@ -201,7 +211,8 @@ namespace Latios.Authoring
 #endif
                 };
 
-                bool createdSystems = bootstrap.InitializeConversion(World, customSettings, ref filteredSystems);
+                customConversionSettings = customSettings;
+                bool createdSystems      = bootstrap.InitializeConversion(World, customSettings, ref filteredSystems);
 
                 if (createdSystems)
                 {

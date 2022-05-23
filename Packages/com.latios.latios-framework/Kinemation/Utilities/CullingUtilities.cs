@@ -8,6 +8,22 @@ namespace Latios.Kinemation
 {
     public static class CullingUtilities
     {
+        /// <summary>
+        /// Add these Components to any bone you want to participate in culling prior to KinemationRenderSyncPointSuperSystem
+        /// or a custom-placed SkeletonMeshBindingReactiveSystem prior to rendering.
+        /// </summary>
+        public static ComponentTypes GetBoneCullingComponentTypes()
+        {
+            var boneTypes = new FixedList128Bytes<ComponentType>();
+            boneTypes.Add(ComponentType.ReadWrite<BoneOwningSkeletonReference>());
+            boneTypes.Add(ComponentType.ReadWrite<BoneIndex>());
+            boneTypes.Add(ComponentType.ReadWrite<BoneCullingIndex>());
+            boneTypes.Add(ComponentType.ReadWrite<BoneBounds>());
+            boneTypes.Add(ComponentType.ReadWrite<BoneWorldBounds>());
+            boneTypes.Add(ComponentType.ChunkComponent<ChunkBoneWorldBounds>());
+            return new ComponentTypes(boneTypes);
+        }
+
         public static NativeArray<FrustumPlanes.PlanePacket4> BuildSOAPlanePackets(DynamicBuffer<CullingPlane> cullingPlanes, ref WorldUnmanaged world)
         {
             return BuildSOAPlanePackets(cullingPlanes.Reinterpret<UnityEngine.Plane>().AsNativeArray(), ref world);
