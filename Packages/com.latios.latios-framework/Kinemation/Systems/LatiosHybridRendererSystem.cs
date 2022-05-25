@@ -1719,7 +1719,10 @@ namespace Latios.Kinemation.Systems
                     if (valid)
                         numValidNewChunks += numChunks;
                     else
+                    {
+                        NativeArray<ArchetypeChunk>.Copy(sortedNewChunks, newChunksX, sortedNewChunks.Length);
                         return numValidNewChunks;
+                    }
 
                     batchBegin   = i;
                     numInstances = instancesInChunk;
