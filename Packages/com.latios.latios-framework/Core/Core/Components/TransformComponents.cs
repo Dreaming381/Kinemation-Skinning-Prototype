@@ -9,13 +9,13 @@ namespace Latios
     [Serializable]
     internal struct Depth : IComponentData
     {
-        internal byte depth;
+        public byte depth;
     }
 
     [Serializable]
     internal struct ChunkDepthMask : IComponentData
     {
-        internal BitField32 chunkDepthMask;
+        public BitField32 chunkDepthMask;
     }
     #endregion
 }

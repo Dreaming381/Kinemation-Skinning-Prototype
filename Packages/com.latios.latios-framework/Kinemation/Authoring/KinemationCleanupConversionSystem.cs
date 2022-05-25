@@ -94,8 +94,9 @@ namespace Latios.Kinemation.Authoring.Systems
             ecb.Playback(DstEntityManager);
             ecb.Dispose();
 
-            var computePropertyID = UnityEngine.Shader.PropertyToID("_ComputeMeshIndex");
-            var materialsCache    = new List<UnityEngine.Material>();
+            var computePropertyID     = UnityEngine.Shader.PropertyToID("_ComputeMeshIndex");
+            var linearBlendPropertyID = UnityEngine.Shader.PropertyToID("_SkinMatrixIndex");
+            var materialsCache        = new List<UnityEngine.Material>();
 
             var renderMeshConversionContext = new RenderMeshConversionContext(DstEntityManager, this)
             {
@@ -104,7 +105,9 @@ namespace Latios.Kinemation.Authoring.Systems
 
             Entities.ForEach((SkinnedMeshConversionContext context) =>
             {
-                var entity = GetPrimaryEntity(context.renderer);
+                var  entity                     = GetPrimaryEntity(context.renderer);
+                bool needsComputeDeformFromCopy = false;
+                bool needsLinearBlendFromCopy   = false;
 
                 context.renderer.GetSharedMaterials(materialsCache);
                 if (materialsCache.Count > 1)
@@ -140,6 +143,12 @@ namespace Latios.Kinemation.Authoring.Systems
                                 if (rm.material.HasProperty(computePropertyID))
                                 {
                                     DstEntityManager.AddComponent<ComputeDeformShaderIndex>(candidateEntity);
+                                    needsComputeDeformFromCopy = true;
+                                }
+                                if (rm.material.HasProperty(linearBlendPropertyID))
+                                {
+                                    DstEntityManager.AddComponent<LinearBlendSkinningShaderIndex>(candidateEntity);
+                                    needsLinearBlendFromCopy = true;
                                 }
                             }
                         }
@@ -151,12 +160,17 @@ namespace Latios.Kinemation.Authoring.Systems
                 else
                     renderMeshConversionContext.Convert(context.renderer, context.renderer.sharedMesh, materialsCache, context.renderer.transform);
 
-                if (materialsCache[0].HasProperty(computePropertyID))
+                // Even if this material doesn't use a particular skinning property, its child might,
+                // and that child will want to copy a valid property from the parent.
+                if (materialsCache[0].HasProperty(computePropertyID) || needsComputeDeformFromCopy)
                 {
-                    // Todo: Once we add other types of skinning, this needs to have the union of all skinning properties so that skin copying works
-                    // even if the copier uses a different skinning method in the shader.
                     DstEntityManager.AddComponent<ComputeDeformShaderIndex>(entity);
                     DstEntityManager.AddChunkComponentData<ChunkComputeDeformMemoryMetadata>(entity);
+                }
+                if (materialsCache[0].HasProperty(linearBlendPropertyID) || needsLinearBlendFromCopy)
+                {
+                    DstEntityManager.AddComponent<LinearBlendSkinningShaderIndex>(entity);
+                    DstEntityManager.AddChunkComponentData<ChunkLinearBlendSkinningMemoryMetadata>(entity);
                 }
 
                 if (context.skeletonContext != null)

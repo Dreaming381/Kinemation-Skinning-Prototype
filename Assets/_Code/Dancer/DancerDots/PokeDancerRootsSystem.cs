@@ -36,7 +36,7 @@ namespace Dragons
     {
         protected override void OnUpdate()
         {
-            float time = math.frac((float)Time.ElapsedTime);
+            float time = (float)math.frac(Time.ElapsedTime * 0.75);
 
             Entities.ForEach((ref Unity.Rendering.URPMaterialPropertyBaseColor color) =>
             {

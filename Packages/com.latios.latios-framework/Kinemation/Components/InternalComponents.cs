@@ -12,6 +12,11 @@ using UnityEngine.Rendering;
 namespace Latios.Kinemation
 {
     // Meshes
+    internal struct MatrixPreviousCache : IComponentData
+    {
+        public float2x4 cachedFirstTwoRows;
+    }
+
     [WriteGroup(typeof(LocalToParent))]
     internal struct SkeletonDependent : ISystemStateComponentData
     {
@@ -30,17 +35,26 @@ namespace Latios.Kinemation
         public uint firstVertexIndex;
     }
 
-    internal struct MatrixPreviousCache : IComponentData
-    {
-        public float2x4 cachedFirstTwoRows;
-    }
-
     [WriteGroup(typeof(ChunkPerCameraCullingMask))]
     internal struct ChunkComputeDeformMemoryMetadata : IComponentData
     {
-        internal int vertexStartPrefixSum;
-        internal int verticesPerMesh;
-        internal int entitiesInChunk;
+        public int vertexStartPrefixSum;
+        public int verticesPerMesh;
+        public int entitiesInChunk;
+    }
+
+    [MaterialProperty("_SkinMatrixIndex", MaterialPropertyFormat.Float)]
+    internal struct LinearBlendSkinningShaderIndex : IComponentData
+    {
+        public int firstMatrixIndex;
+    }
+
+    [WriteGroup(typeof(ChunkPerCameraCullingMask))]
+    internal struct ChunkLinearBlendSkinningMemoryMetadata : IComponentData
+    {
+        public int bonesStartPrefixSum;
+        public int bonesPerMesh;
+        public int entitiesInChunk;
     }
 
     [WriteGroup(typeof(ChunkPerCameraCullingMask))]
@@ -340,6 +354,11 @@ namespace Latios.Kinemation
     internal struct MaxRequiredDeformVertices : IComponentData
     {
         public int verticesCount;
+    }
+
+    internal struct MaxRequiredLinearBlendMatrices : IComponentData
+    {
+        public int matricesCount;
     }
 
     internal struct MaterialPropertiesUploadContextTag : IComponentData { }

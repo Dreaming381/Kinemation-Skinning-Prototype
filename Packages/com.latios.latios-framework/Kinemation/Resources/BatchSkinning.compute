@@ -125,10 +125,11 @@ void BatchSkinningFullLds1024(uint threadId : SV_GroupIndex, uint3 groupIds : SV
     for (uint meshIndex = 0; meshIndex < meshCount; meshIndex++)
     {
         const uint4 meshMeta = _metaBuffer.Load4((meshStart + meshIndex * 2) * 16);
-        const uint meshOperation = meshMeta.x;
+        const uint meshOperation = meshMeta.x & 0xffff;
+        const uint meshBonesCount = meshMeta.x >> 16;
         const uint meshBindposesStart = meshMeta.y;
         const uint meshBoneOffsetsStart = meshMeta.z;
-        const uint meshBonesCount = meshMeta.w;
+        const uint matsDst = meshMeta.w;
 
         const uint4 meshMeta2 = _metaBuffer.Load4((meshStart + meshIndex * 2) * 16 + 16);
         const uint meshVertexStart = meshMeta2.x;
@@ -153,7 +154,7 @@ void BatchSkinningFullLds1024(uint threadId : SV_GroupIndex, uint3 groupIds : SV
         {
             for (uint i = threadId; i < meshBonesCount; i += THREAD_GROUP_SIZE)
             {
-                _dstMats[i] = gs_skeletonMats[i + skeletonCount];
+                _dstMats[matsDst + i] = gs_skeletonMats[i + skeletonCount];
             }
         }
 

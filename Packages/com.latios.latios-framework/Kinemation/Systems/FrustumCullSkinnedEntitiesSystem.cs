@@ -19,7 +19,8 @@ namespace Latios.Kinemation.Systems
         protected override void OnCreate()
         {
             m_metaQuery = Fluent.WithAll<ChunkWorldRenderBounds>(true).WithAll<HybridChunkInfo>(true).WithAll<ChunkHeader>(true).WithAll<ChunkPerFrameCullingMask>(true)
-                          .WithAll<ChunkComputeDeformMemoryMetadata>(true).WithAll<ChunkPerCameraCullingMask>(false).UseWriteGroups().Build();
+                          .WithAny<ChunkComputeDeformMemoryMetadata>(true).WithAny<ChunkLinearBlendSkinningMemoryMetadata>(true).WithAll<ChunkPerCameraCullingMask>(false)
+                          .UseWriteGroups().Build();
         }
 
         protected override void OnUpdate()

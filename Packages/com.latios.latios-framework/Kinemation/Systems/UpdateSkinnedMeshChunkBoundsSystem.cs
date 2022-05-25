@@ -24,7 +24,8 @@ namespace Latios.Kinemation.Systems
         {
             m_exposedMetaQuery     = Fluent.WithAll<ChunkHeader>(true).WithAll<ChunkBoneWorldBounds>(true).Build();
             m_optimizedMetaQuery   = Fluent.WithAll<ChunkHeader>(true).WithAll<ChunkSkeletonWorldBounds>(true).Build();
-            m_skinnedMeshMetaQuery = Fluent.WithAll<ChunkHeader>(true).WithAll<ChunkWorldRenderBounds>(false).WithAll<ChunkComputeDeformMemoryMetadata>(true).Build();
+            m_skinnedMeshMetaQuery = Fluent.WithAll<ChunkHeader>(true).WithAll<ChunkWorldRenderBounds>(false)
+                                     .WithAny<ChunkComputeDeformMemoryMetadata>(true).WithAny<ChunkLinearBlendSkinningMemoryMetadata>(true).Build();
         }
 
         protected override void OnUpdate()

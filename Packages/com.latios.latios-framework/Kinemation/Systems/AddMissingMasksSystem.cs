@@ -12,6 +12,7 @@ namespace Latios.Kinemation.Systems
     public class AddMissingMasksSystem : SubSystem
     {
         EntityQuery m_computeQuery;
+        EntityQuery m_linearBlendQuery;
         EntityQuery m_copyQuery;
         EntityQuery m_baseQuery;
 
@@ -19,6 +20,9 @@ namespace Latios.Kinemation.Systems
         {
             m_computeQuery = Fluent.WithAll<RenderMesh>(true).WithAll<ComputeDeformShaderIndex>().Without<ShareSkinFromEntity>().Without<ChunkComputeDeformMemoryMetadata>(true)
                              .IncludePrefabs().IncludeDisabled().Build();
+            m_linearBlendQuery =
+                Fluent.WithAll<RenderMesh>(true).WithAll<LinearBlendSkinningShaderIndex>().Without<ShareSkinFromEntity>().Without<ChunkLinearBlendSkinningMemoryMetadata>(true)
+                .IncludePrefabs().IncludeDisabled().Build();
             m_copyQuery = Fluent.WithAll<ShareSkinFromEntity>(true).Without<ChunkCopySkinShaderData>(true).IncludePrefabs().IncludeDisabled().Build();
             m_baseQuery = Fluent.WithAll<RenderMesh>(true).Without<ChunkPerFrameCullingMask>(true).IncludePrefabs().IncludeDisabled().Build();
         }
@@ -29,6 +33,10 @@ namespace Latios.Kinemation.Systems
                                                                           ComponentType.ChunkComponent<ChunkPerFrameCullingMask>(),
                                                                           ComponentType.ChunkComponent<ChunkMaterialPropertyDirtyMask>(),
                                                                           ComponentType.ChunkComponent<ChunkComputeDeformMemoryMetadata>()));
+            EntityManager.AddComponent(m_computeQuery, new ComponentTypes(ComponentType.ChunkComponent<ChunkPerCameraCullingMask>(),
+                                                                          ComponentType.ChunkComponent<ChunkPerFrameCullingMask>(),
+                                                                          ComponentType.ChunkComponent<ChunkMaterialPropertyDirtyMask>(),
+                                                                          ComponentType.ChunkComponent<ChunkLinearBlendSkinningMemoryMetadata>()));
             EntityManager.AddComponent(m_copyQuery, new ComponentTypes(ComponentType.ChunkComponent<ChunkPerCameraCullingMask>(),
                                                                        ComponentType.ChunkComponent<ChunkPerFrameCullingMask>(),
                                                                        ComponentType.ChunkComponent<ChunkMaterialPropertyDirtyMask>(),

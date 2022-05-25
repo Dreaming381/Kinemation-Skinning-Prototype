@@ -48,7 +48,8 @@ namespace Latios.Kinemation.Systems
 
             public ComponentTypeHandle<ChunkPerCameraCullingMask> chunkPerCameraMaskHandle;
 
-            [NativeDisableParallelForRestriction] public ComponentDataFromEntity<ComputeDeformShaderIndex> computeCdfe;
+            [NativeDisableParallelForRestriction] public ComponentDataFromEntity<ComputeDeformShaderIndex>       computeCdfe;
+            [NativeDisableParallelForRestriction] public ComponentDataFromEntity<LinearBlendSkinningShaderIndex> linearBlendCdfe;
 
             public void Execute(ArchetypeChunk archetypeChunk, int chunkIndex)
             {
@@ -123,6 +124,10 @@ namespace Latios.Kinemation.Systems
                     if (computeCdfe.HasComponent(thisEntity))
                     {
                         computeCdfe[thisEntity] = computeCdfe[reference];
+                    }
+                    if (linearBlendCdfe.HasComponent(thisEntity))
+                    {
+                        linearBlendCdfe[thisEntity] = linearBlendCdfe[reference];
                     }
                 }
                 return result;

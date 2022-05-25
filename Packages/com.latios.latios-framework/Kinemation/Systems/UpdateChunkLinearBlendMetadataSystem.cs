@@ -9,22 +9,22 @@ using Unity.Transforms;
 namespace Latios.Kinemation.Systems
 {
     [DisableAutoCreation]
-    public partial class UpdateChunkComputeDeformMetadataSystem : SubSystem
+    public partial class UpdateChunkLinearBlendMetadataSystem : SubSystem
     {
         EntityQuery m_query;
 
         protected override void OnCreate()
         {
-            m_query = Fluent.WithAll<SkeletonDependent>(true).WithAll<ChunkComputeDeformMemoryMetadata>(false, true).Build();
+            m_query = Fluent.WithAll<SkeletonDependent>(true).WithAll<ChunkLinearBlendSkinningMemoryMetadata>(false, true).Build();
         }
 
         protected override void OnUpdate()
         {
-            worldBlackboardEntity.SetComponentData(new MaxRequiredDeformVertices { verticesCount = 0 });
+            worldBlackboardEntity.SetComponentData(new MaxRequiredLinearBlendMatrices { matricesCount = 0 });
 
             var lastSystemVersion = LastSystemVersion;
             var blobHandle        = GetComponentTypeHandle<SkeletonDependent>(true);
-            var metaHandle        = GetComponentTypeHandle<ChunkComputeDeformMemoryMetadata>(false);
+            var metaHandle        = GetComponentTypeHandle<ChunkLinearBlendSkinningMemoryMetadata>(false);
 
             Dependency = new UpdateChunkVertexCountsJob
             {
@@ -37,9 +37,9 @@ namespace Latios.Kinemation.Systems
         [BurstCompile]
         struct UpdateChunkVertexCountsJob : IJobEntityBatch
         {
-            [ReadOnly] public ComponentTypeHandle<SkeletonDependent>     blobHandle;
-            public ComponentTypeHandle<ChunkComputeDeformMemoryMetadata> metaHandle;
-            public uint                                                  lastSystemVersion;
+            [ReadOnly] public ComponentTypeHandle<SkeletonDependent>           blobHandle;
+            public ComponentTypeHandle<ChunkLinearBlendSkinningMemoryMetadata> metaHandle;
+            public uint                                                        lastSystemVersion;
 
             public void Execute(ArchetypeChunk batchInChunk, int batchIndex)
             {
@@ -49,22 +49,22 @@ namespace Latios.Kinemation.Systems
                     return;
 
                 var blobs       = batchInChunk.GetNativeArray(blobHandle);
-                int minVertices = int.MaxValue;
-                int maxVertices = int.MinValue;
+                int minMatrices = int.MaxValue;
+                int maxMatrices = int.MinValue;
 
                 for (int i = 0; i < batchInChunk.Count; i++)
                 {
-                    int c       = blobs[i].skinningBlob.Value.verticesToSkin.Length;
-                    minVertices = math.min(minVertices, c);
-                    maxVertices = math.max(maxVertices, c);
+                    int c       = blobs[i].skinningBlob.Value.bindPoses.Length;
+                    minMatrices = math.min(minMatrices, c);
+                    maxMatrices = math.max(maxMatrices, c);
                 }
 
-                CheckVertexCountMismatch(minVertices, maxVertices);
+                CheckVertexCountMismatch(minMatrices, maxMatrices);
 
                 var metadata = batchInChunk.GetChunkComponentData(metaHandle);
-                if (metadata.verticesPerMesh != maxVertices || metadata.entitiesInChunk != batchInChunk.Count)
+                if (metadata.bonesPerMesh != maxMatrices || metadata.entitiesInChunk != batchInChunk.Count)
                 {
-                    metadata.verticesPerMesh = maxVertices;
+                    metadata.bonesPerMesh    = maxMatrices;
                     metadata.entitiesInChunk = batchInChunk.Count;
                     batchInChunk.SetChunkComponentData(metaHandle, metadata);
                 }
