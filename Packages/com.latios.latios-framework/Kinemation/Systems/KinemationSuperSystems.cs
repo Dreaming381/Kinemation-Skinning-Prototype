@@ -17,8 +17,8 @@ namespace Latios.Kinemation.Systems
         {
             EnableSystemSorting = false;
 
-            GetOrCreateAndAddSystem<FrustumCullBonesSystem>();
-            GetOrCreateAndAddSystem<FrustumCullSkeletonsSystem>();
+            GetOrCreateAndAddSystem<FrustumCullExposedSkeletonsSystem>();
+            GetOrCreateAndAddSystem<FrustumCullOptimizedSkeletonsSystem>();
             GetOrCreateAndAddSystem<UpdateLODsSystem>();
             GetOrCreateAndAddSystem<FrustumCullSkinnedEntitiesSystem>();
             GetOrCreateAndAddSystem<AllocateDeformedMeshesSystem>();
@@ -52,11 +52,12 @@ namespace Latios.Kinemation.Systems
         protected override void CreateSystems()
         {
             GetOrCreateAndAddSystem<EndPerFrameMeshSkinningBuffersUploadSystem>();
+            GetOrCreateAndAddSystem<UpdateMatrixPreviousSystem>();
+            GetOrCreateAndAddSystem<CombineExposedBonesSystem>();
             GetOrCreateAndAddSystem<ClearPerFrameCullingMasksSystem>();
             GetOrCreateAndAddSystem<UpdateChunkComputeDeformMetadataSystem>();
             GetOrCreateAndAddSystem<UpdateChunkLinearBlendMetadataSystem>();
             GetOrCreateAndAddSystem<ResetPerFrameSkinningMetadataJob>();
-            GetOrCreateAndAddSystem<UpdateMatrixPreviousSystem>();
         }
     }
 

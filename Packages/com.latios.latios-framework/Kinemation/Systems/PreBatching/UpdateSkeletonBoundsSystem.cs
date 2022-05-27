@@ -19,12 +19,11 @@ namespace Latios.Kinemation.Systems
 
         protected override void OnCreate()
         {
-            m_exposedBonesQuery =
-                Fluent.WithAll<BoneBounds>(true).WithAll<BoneWorldBounds>(false).WithAll<ChunkBoneWorldBounds>(false, true).WithAll<LocalToWorld>(true).Build();
-            m_optimizedSkeletonsQuery =
-                Fluent.WithAll<OptimizedBoneBounds>(true).WithAll<OptimizedBoneToRoot>(true).WithAll<SkeletonWorldBounds>(false).WithAll<ChunkSkeletonWorldBounds>(false,
-                                                                                                                                                                   true).WithAll<LocalToWorld>(
-                    true).Build();
+            m_exposedBonesQuery = Fluent.WithAll<BoneBounds>(true).WithAll<BoneWorldBounds>(false).WithAll<ChunkBoneWorldBounds>(false, true)
+                                  .WithAll<LocalToWorld>(            true).Build();
+
+            m_optimizedSkeletonsQuery = Fluent.WithAll<OptimizedBoneBounds>(true).WithAll<OptimizedBoneToRoot>(true).WithAll<SkeletonWorldBounds>(false)
+                                        .WithAll<ChunkSkeletonWorldBounds>(false, true).WithAll<LocalToWorld>(true).Build();
         }
 
         protected override void OnUpdate()
@@ -74,10 +73,10 @@ namespace Latios.Kinemation.Systems
                 {
                     //A structural change happened but no component of concern changed, meaning we need to recalculate the chunk component but nothing else (rare).
                     var worldBoundsRO = batchInChunk.GetNativeArray(boneWorldBoundsReadOnlyHandle);
-                    var aabb          = new Aabb(worldBoundsRO[0].bounds.Min, worldBoundsRO[0].bounds.Max);
+                    var aabb          = worldBoundsRO[0].bounds;
                     for (int i = 1; i < batchInChunk.Count; i++)
                         aabb =
-                            Physics.CombineAabb(aabb, new Aabb(worldBoundsRO[i].bounds.Min, worldBoundsRO[i].bounds.Max));
+                            Physics.CombineAabb(aabb, worldBoundsRO[i].bounds);
                     batchInChunk.SetChunkComponentData(chunkBoneWorldBoundsHandle, new ChunkBoneWorldBounds { chunkBounds = FromAabb(aabb) });
                     return;
                 }
@@ -86,11 +85,11 @@ namespace Latios.Kinemation.Systems
                 var worldBounds = batchInChunk.GetNativeArray(boneWorldBoundsHandle);
 
                 Aabb chunkBounds = ComputeBounds(boneBounds[0].radialOffsetInBoneSpace, ltws[0].Value);
-                worldBounds[0]   = new BoneWorldBounds { bounds = FromAabb(chunkBounds) };
+                worldBounds[0]   = new BoneWorldBounds { bounds = chunkBounds };
                 for (int i = 1; i < batchInChunk.Count; i++)
                 {
                     var newBounds  = ComputeBounds(boneBounds[i].radialOffsetInBoneSpace, ltws[i].Value);
-                    worldBounds[i] = new BoneWorldBounds { bounds = FromAabb(newBounds) };
+                    worldBounds[i] = new BoneWorldBounds { bounds = newBounds };
                     chunkBounds    = Physics.CombineAabb(chunkBounds, newBounds);
                 }
 

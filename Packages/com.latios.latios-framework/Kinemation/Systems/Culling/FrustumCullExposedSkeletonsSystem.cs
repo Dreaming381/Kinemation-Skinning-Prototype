@@ -11,22 +11,21 @@ using Unity.Transforms;
 namespace Latios.Kinemation.Systems
 {
     [DisableAutoCreation]
-    public class FrustumCullBonesSystem : SubSystem
+    public class FrustumCullExposedSkeletonsSystem : SubSystem
     {
-        EntityQuery m_bonesQuery;
-        EntityQuery m_skeletonsQuery;
+        EntityQuery m_query;
 
         protected override void OnCreate()
         {
-            m_bonesQuery     = Fluent.WithAll<BoneWorldBounds>(true).WithAll<ChunkBoneWorldBounds>(true, true).WithAll<BoneCullingIndex>(true).Build();
-            m_skeletonsQuery =
-                Fluent.WithAll<DependentSkinnedMesh>(true).WithAll<ExposedSkeletonCullingIndex>(true).WithAll<ChunkPerCameraSkeletonCullingMask>(false, true).Build();
+            m_query = Fluent.WithAll<DependentSkinnedMesh>(true).WithAll<ExposedSkeletonCullingIndex>(true)
+                      .WithAll<ChunkPerCameraSkeletonCullingMask>(false, true).Build();
         }
 
         protected override void OnUpdate()
         {
             // Todo: We only need the max index, so we may want to store that in an ICD instead.
             var exposedCullingIndexManager = worldBlackboardEntity.GetCollectionComponent<ExposedCullingIndexManager>(true, out var cullingIndexJH);
+            var boundsArrays               = worldBlackboardEntity.GetCollectionComponent<ExposedSkeletonBoundsArrays>(true);
             cullingIndexJH.Complete();
 
             var planesBuffer = worldBlackboardEntity.GetBuffer<CullingPlane>(true);
@@ -37,16 +36,15 @@ namespace Latios.Kinemation.Systems
             for (int i = 0; i < JobsUtility.MaxJobThreadCount; i++)
                 perThreadBitArrays[i] = default;
 
-            Dependency = new CullExposedBonesJob
+            Dependency = new CullExposedBoundsJob
             {
-                chunkBoneWorldBoundsHandle = GetComponentTypeHandle<ChunkBoneWorldBounds>(true),
-                boneWorldBoundsHandle      = GetComponentTypeHandle<BoneWorldBounds>(true),
-                boneCullingIndexHandle     = GetComponentTypeHandle<BoneCullingIndex>(true),
-                planePackets               = planes,
-                maxBitIndex                = exposedCullingIndexManager.maxIndex,
-                perThreadBitArrays         = perThreadBitArrays,
-                allocator                  = unmanaged.UpdateAllocator.ToAllocator
-            }.ScheduleParallel(m_bonesQuery, JobHandle.CombineDependencies(Dependency, cullingIndexJH));
+                aabbs              = boundsArrays.allAabbs.AsDeferredJobArray(),
+                batchAabbs         = boundsArrays.batchedAabbs.AsDeferredJobArray(),
+                planePackets       = planes,
+                maxBitIndex        = exposedCullingIndexManager.maxIndex,
+                perThreadBitArrays = perThreadBitArrays,
+                allocator          = unmanaged.UpdateAllocator.ToAllocator
+            }.ScheduleBatch(exposedCullingIndexManager.maxIndex.Value + 1, 32, Dependency);
 
             Dependency = new CollapseBitsJob
             {
@@ -58,16 +56,15 @@ namespace Latios.Kinemation.Systems
                 chunkMaskHandle    = GetComponentTypeHandle<ChunkPerCameraSkeletonCullingMask>(false),
                 cullingIndexHandle = GetComponentTypeHandle<ExposedSkeletonCullingIndex>(true),
                 perThreadBitArrays = perThreadBitArrays
-            }.ScheduleParallel(m_skeletonsQuery, Dependency);
+            }.ScheduleParallel(m_query, Dependency);
         }
 
         // Todo: Is it worth iterating over meta chunks?
         [BurstCompile]
-        struct CullExposedBonesJob : IJobEntityBatch
+        struct CullExposedBoundsJob : IJobParallelForBatch
         {
-            [ReadOnly] public ComponentTypeHandle<ChunkBoneWorldBounds>              chunkBoneWorldBoundsHandle;
-            [ReadOnly] public ComponentTypeHandle<BoneWorldBounds>                   boneWorldBoundsHandle;
-            [ReadOnly] public ComponentTypeHandle<BoneCullingIndex>                  boneCullingIndexHandle;
+            [ReadOnly] public NativeArray<AABB>                                      aabbs;
+            [ReadOnly] public NativeArray<AABB>                                      batchAabbs;
             [ReadOnly] public NativeArray<FrustumPlanes.PlanePacket4>                planePackets;
             [ReadOnly] public NativeReference<int>                                   maxBitIndex;
             [NativeDisableParallelForRestriction] public NativeArray<UnsafeBitArray> perThreadBitArrays;
@@ -75,12 +72,13 @@ namespace Latios.Kinemation.Systems
 
             [NativeSetThreadIndex] int m_NativeThreadIndex;
 
-            public void Execute(ArchetypeChunk batchInChunk, int batchIndex)
+            public void Execute(int startIndex, int count)
             {
-                var chunkBounds = batchInChunk.GetChunkComponentData(chunkBoneWorldBoundsHandle);
-                var cullType    = FrustumPlanes.Intersect2(planePackets, chunkBounds.chunkBounds);
+                var cullType = FrustumPlanes.Intersect2(planePackets, batchAabbs[startIndex / 32]);
                 if (cullType == FrustumPlanes.IntersectResult.Out)
+                {
                     return;
+                }
 
                 var perThreadBitArray = perThreadBitArrays[m_NativeThreadIndex];
                 if (!perThreadBitArray.IsCreated)
@@ -91,23 +89,20 @@ namespace Latios.Kinemation.Systems
                     perThreadBitArrays[m_NativeThreadIndex] = perThreadBitArray;
                 }
 
-                var boneCullingIndices = batchInChunk.GetNativeArray(boneCullingIndexHandle);
-
                 if (cullType == FrustumPlanes.IntersectResult.In)
                 {
-                    for (int i = 0; i < batchInChunk.Count; i++)
+                    for (int i = 0; i < count; i++)
                     {
-                        perThreadBitArray.Set(boneCullingIndices[i].cullingIndex, true);
+                        perThreadBitArray.Set(startIndex + i, true);
                     }
                 }
                 else
                 {
-                    var worldBounds = batchInChunk.GetNativeArray(boneWorldBoundsHandle);
-                    for (int i = 0; i < batchInChunk.Count; i++)
+                    for (int i = 0; i < count; i++)
                     {
-                        bool bit  = perThreadBitArray.IsSet(boneCullingIndices[i].cullingIndex);
-                        bit      |= FrustumPlanes.Intersect2NoPartial(planePackets, worldBounds[i].bounds) == FrustumPlanes.IntersectResult.In;
-                        perThreadBitArray.Set(boneCullingIndices[i].cullingIndex, bit);
+                        bool bit  = perThreadBitArray.IsSet(startIndex + i);
+                        bit      |= FrustumPlanes.Intersect2NoPartial(planePackets, aabbs[startIndex + i]) == FrustumPlanes.IntersectResult.In;
+                        perThreadBitArray.Set(startIndex + i, bit);
                     }
                 }
             }

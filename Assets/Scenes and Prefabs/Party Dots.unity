@@ -707,8 +707,8 @@ MonoBehaviour:
   dancerPrefab: {fileID: 944734679095808647, guid: 77acc2982dec3724091732968c758d57,
     type: 3}
   referencesToSpawn: 10
-  rows: 1
-  columns: 1
+  rows: 100
+  columns: 100
   interval: 2
 --- !u!114 &1905823777
 MonoBehaviour:

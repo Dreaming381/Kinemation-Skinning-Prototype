@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Latios.Psyshock;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
@@ -104,7 +105,7 @@ namespace Latios.Kinemation
 
     internal struct BoneWorldBounds : IComponentData
     {
-        public AABB bounds;
+        public Aabb bounds;
     }
 
     internal struct ChunkBoneWorldBounds : IComponentData
@@ -377,6 +378,22 @@ namespace Latios.Kinemation
         {
             // We don't own this data
             return inputDeps;
+        }
+    }
+
+    internal struct ExposedSkeletonBoundsArraysTag : IComponentData { }
+
+    internal struct ExposedSkeletonBoundsArrays : ICollectionComponent
+    {
+        public NativeList<AABB> allAabbs;
+        public NativeList<AABB> batchedAabbs;
+        public const int        kCountPerBatch = 32;  // Todo: Is there a better size?
+
+        public Type AssociatedComponentType => typeof(ExposedSkeletonBoundsArraysTag);
+        public JobHandle Dispose(JobHandle inputDeps)
+        {
+            inputDeps = allAabbs.Dispose(inputDeps);
+            return batchedAabbs.Dispose(inputDeps);
         }
     }
     #endregion

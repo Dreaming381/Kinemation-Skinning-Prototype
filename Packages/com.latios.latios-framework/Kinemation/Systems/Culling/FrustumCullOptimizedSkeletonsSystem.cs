@@ -9,7 +9,7 @@ using Unity.Transforms;
 namespace Latios.Kinemation.Systems
 {
     [DisableAutoCreation]
-    public class FrustumCullSkeletonsSystem : SubSystem
+    public class FrustumCullOptimizedSkeletonsSystem : SubSystem
     {
         EntityQuery m_metaQuery;
 
