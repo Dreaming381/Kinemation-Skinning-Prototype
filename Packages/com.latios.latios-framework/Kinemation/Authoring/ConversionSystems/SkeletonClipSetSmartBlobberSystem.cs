@@ -131,12 +131,19 @@ namespace Latios.Kinemation.Authoring.Systems
                     sampledLocalTransforms = SampleClip(shadowHierarchy, clip.clip, allocator)
                 };
             }
+            shadowHierarchy.Dispose();
 
             return true;
         }
 
         Queue<Transform> m_breadthQueeue = new Queue<Transform>();
 
+        // Todo: Exposed and exported bones should always have a mapping in the skeleton definition
+        // and consequently the shadow skeleton can track them. Optimized bones can't have their names
+        // altered between import and deoptimization, so the optimized bone subtree underneath an exposed
+        // bone can use path matching. The only failure case is if an optimized bone's path gets altered.
+        // In that case, it might be best to log a warning and assign the skeleton definition's transform
+        // to all samples for that bone.
         TransformAccessArray BuildHierarchyFromShadow(SkeletonConversionContext context)
         {
             var boneCount = context.skeleton.Length;
