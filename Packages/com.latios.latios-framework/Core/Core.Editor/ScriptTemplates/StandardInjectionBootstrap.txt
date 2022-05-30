@@ -27,7 +27,7 @@ public class LatiosBootstrap : ICustomBootstrap
         World.DefaultGameObjectInjectionWorld = world;
 
         var systems = new List<Type>(DefaultWorldInitialization.GetAllSystems(WorldSystemFilterFlags.Default));
-        DefaultWorldInitialization.AddSystemsToRootLevelSystemGroups(world, systems);
+        BootstrapTools.InjectSystems(systems, world, world.simulationSystemGroup);
 
         CoreBootstrap.InstallImprovedTransforms(world);
         Latios.Myri.MyriBootstrap.InstallMyri(world);
