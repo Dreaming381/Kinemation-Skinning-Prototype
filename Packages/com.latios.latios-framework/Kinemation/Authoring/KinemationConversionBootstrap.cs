@@ -21,6 +21,7 @@ namespace Latios.Kinemation.Authoring
             BootstrapTools.InjectSystem(typeof(SkeletonHierarchySmartBlobberSystem),          world);
             BootstrapTools.InjectSystem(typeof(MeshSkinningSmartBlobberSystem),               world);
             BootstrapTools.InjectSystem(typeof(MeshPathsSmartBlobberSystem),                  world);
+            BootstrapTools.InjectSystem(typeof(SkeletonClipSetSmartBlobberSystem),            world);
             BootstrapTools.InjectSystem(typeof(KinemationCleanupConversionSystem),            world);
             BootstrapTools.InjectSystem(typeof(AddMasksConversionSystem),                     world);
         }

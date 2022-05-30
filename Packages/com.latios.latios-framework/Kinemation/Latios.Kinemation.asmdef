@@ -14,7 +14,8 @@
         "Unity.Rendering.Hybrid",
         "Unity.Transforms",
         "Unity.Mathematics.Extensions",
-        "Unity.Mathematics.Extensions.Hybrid"
+        "Unity.Mathematics.Extensions.Hybrid",
+        "ACL_Unity"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
