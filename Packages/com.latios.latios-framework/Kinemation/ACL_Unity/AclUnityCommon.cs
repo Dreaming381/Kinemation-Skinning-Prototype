@@ -28,14 +28,9 @@ namespace AclUnity
     {
         public static SemanticVersion GetVersion()
         {
-            var mask = GetArch();
-            int version;
-            if (mask.avx)
+            int version = 0;
+            if (X86.Avx2.IsAvx2Supported)
                 version = AVX.getVersion();
-            else if (mask.sse4)
-                version = SSE4.getVersion();
-            else if (mask.neon)
-                version = Neon.getVersion();
             else
             {
                 //UnityEngine.Debug.Log("Fetched without AVX");
@@ -53,57 +48,14 @@ namespace AclUnity
 
         public static string GetPluginName()
         {
-            var mask = GetArch();
-            if (mask.avx)
+            if (X86.Avx2.IsAvx2Supported)
                 return dllNameAVX;
-            if (mask.sse4)
-                return dllNameSSE4;
-            if (mask.neon)
-                return dllNameNeon;
             return dllName;
         }
 
-        [BurstCompile(CompileSynchronously = true)]
-        internal struct ArchitectureMask
-        {
-            internal byte m_avx;
-            internal byte m_sse4;
-            internal byte m_neon;
+        internal const string dllName    = "AclUnity";
+        internal const string dllNameAVX = "AclUnity_AVX";
 
-            public bool avx => m_avx != 0;
-            public bool sse4 => m_sse4 != 0;
-            public bool neon => m_neon != 0;
-        }
-
-        [BurstCompile]
-        private static void GetArch(ref ArchitectureMask mask)
-        {
-            if (X86.Avx2.IsAvx2Supported)
-                mask.m_avx = 1;
-            else if (X86.Sse4_2.IsSse42Supported && X86.Popcnt.IsPopcntSupported)
-                mask.m_sse4 = 1;
-            else if (Arm.Neon.IsNeonSupported)
-                mask.m_neon = 1;
-        }
-
-        internal static ArchitectureMask GetArch()
-        {
-            ArchitectureMask mask = default;
-            GetArch(ref mask);
-            return mask;
-        }
-
-#if UNITY_IPHONE
-        private const string dllName     = "__Internal";
-        private const string dllNameAVX  = "__Internal";
-        private const string dllNameSSE4 = "__Internal";
-        private const string dllNameNeon = "__Internal";
-#else
-        private const string dllName     = "AclUnity";
-        private const string dllNameAVX  = "AclUnity_AVX";
-        private const string dllNameSSE4 = "AclUnity_SSE4";
-        private const string dllNameNeon = "AclUnity_Neon";
-#endif
         static class NoExtensions
         {
             [DllImport(dllName)]
@@ -113,18 +65,6 @@ namespace AclUnity
         static class AVX
         {
             [DllImport(dllNameAVX)]
-            public static extern int getVersion();
-        }
-
-        static class SSE4
-        {
-            [DllImport(dllNameSSE4)]
-            public static extern int getVersion();
-        }
-
-        static class Neon
-        {
-            [DllImport(dllNameNeon)]
             public static extern int getVersion();
         }
     }

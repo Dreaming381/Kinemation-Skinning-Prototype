@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using Unity.Burst.Intrinsics;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
@@ -49,24 +50,23 @@ namespace AclUnity
             CheckSampleRateIsValid(sampleRate);
             CheckSkeletonSettingsIsValid(settings);
 
-            var alignedClipData = aosClipData.GetUnsafeReadOnlyPtr();
+            var alignedClipData = (float*)aosClipData.GetUnsafeReadOnlyPtr();
             if (!CollectionHelper.IsAligned(alignedClipData, 16))
             {
-                alignedClipData = UnsafeUtility.Malloc(UnsafeUtility.SizeOf<Qvv>() * aosClipData.Length, math.max(UnsafeUtility.AlignOf<Qvv>(), 16), Allocator.TempJob);
+                alignedClipData = (float*)UnsafeUtility.Malloc(UnsafeUtility.SizeOf<Qvv>() * aosClipData.Length, math.max(UnsafeUtility.AlignOf<Qvv>(), 16), Allocator.TempJob);
                 UnsafeUtility.MemCpy(alignedClipData, aosClipData.GetUnsafeReadOnlyPtr(), UnsafeUtility.SizeOf<Qvv>() * aosClipData.Length);
             }
 
             int   outCompressedSizeInBytes = 0;
             void* compressedClipPtr;
 
-            var mask = AclUnityCommon.GetArch();
-            if (mask.avx)
+            if (X86.Avx2.IsAvx2Supported)
             {
                 compressedClipPtr = AVX.compressSkeletonClip((short*)parentIndices.GetUnsafeReadOnlyPtr(),
                                                              (short)parentIndices.Length,
                                                              settings.compressionLevel,
-                                                             (float*)alignedClipData,
-                                                             aosClipData.Length,
+                                                             alignedClipData,
+                                                             aosClipData.Length / parentIndices.Length,
                                                              sampleRate,
                                                              settings.maxDistanceError,
                                                              settings.sampledErrorDistanceFromBone,
@@ -75,43 +75,13 @@ namespace AclUnity
                                                              &outCompressedSizeInBytes
                                                              );
             }
-            else if (mask.sse4)
-            {
-                compressedClipPtr = SSE4.compressSkeletonClip((short*)parentIndices.GetUnsafeReadOnlyPtr(),
-                                                              (short)parentIndices.Length,
-                                                              settings.compressionLevel,
-                                                              (float*)alignedClipData,
-                                                              aosClipData.Length,
-                                                              sampleRate,
-                                                              settings.maxDistanceError,
-                                                              settings.sampledErrorDistanceFromBone,
-                                                              settings.maxNegligibleTranslationDrift,
-                                                              settings.maxNegligibleScaleDrift,
-                                                              &outCompressedSizeInBytes
-                                                              );
-            }
-            else if (mask.neon)
-            {
-                compressedClipPtr = Neon.compressSkeletonClip((short*)parentIndices.GetUnsafeReadOnlyPtr(),
-                                                              (short)parentIndices.Length,
-                                                              settings.compressionLevel,
-                                                              (float*)alignedClipData,
-                                                              aosClipData.Length,
-                                                              sampleRate,
-                                                              settings.maxDistanceError,
-                                                              settings.sampledErrorDistanceFromBone,
-                                                              settings.maxNegligibleTranslationDrift,
-                                                              settings.maxNegligibleScaleDrift,
-                                                              &outCompressedSizeInBytes
-                                                              );
-            }
             else
             {
                 compressedClipPtr = NoExtensions.compressSkeletonClip((short*)parentIndices.GetUnsafeReadOnlyPtr(),
                                                                       (short)parentIndices.Length,
                                                                       settings.compressionLevel,
-                                                                      (float*)alignedClipData,
-                                                                      aosClipData.Length,
+                                                                      alignedClipData,
+                                                                      aosClipData.Length / parentIndices.Length,
                                                                       sampleRate,
                                                                       settings.maxDistanceError,
                                                                       settings.sampledErrorDistanceFromBone,
@@ -126,9 +96,15 @@ namespace AclUnity
                 UnsafeUtility.Free(alignedClipData, Allocator.TempJob);
             }
 
+            var resultArray = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<byte>(compressedClipPtr, outCompressedSizeInBytes, Allocator.None);
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+            var safety = AtomicSafetyHandle.Create();
+            NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref resultArray, safety);
+#endif
+
             return new AclCompressedClipResult
             {
-                compressedData = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<byte>(compressedClipPtr, outCompressedSizeInBytes, Allocator.None),
+                compressedData = resultArray
             };
         }
 
@@ -146,8 +122,7 @@ namespace AclUnity
             int   outCompressedSizeInBytes = 0;
             void* compressedClipPtr;
 
-            var mask = AclUnityCommon.GetArch();
-            if (mask.avx)
+            if (X86.Avx2.IsAvx2Supported)
             {
                 compressedClipPtr = AVX.compressScalarsClip((short)maxErrorsByTrack.Length,
                                                             compressionLevel,
@@ -156,26 +131,6 @@ namespace AclUnity
                                                             sampleRate,
                                                             (float*)maxErrorsByTrack.GetUnsafeReadOnlyPtr(),
                                                             &outCompressedSizeInBytes);
-            }
-            else if (mask.sse4)
-            {
-                compressedClipPtr = SSE4.compressScalarsClip((short)maxErrorsByTrack.Length,
-                                                             compressionLevel,
-                                                             (float*)clipData.GetUnsafeReadOnlyPtr(),
-                                                             clipData.Length / maxErrorsByTrack.Length,
-                                                             sampleRate,
-                                                             (float*)maxErrorsByTrack.GetUnsafeReadOnlyPtr(),
-                                                             &outCompressedSizeInBytes);
-            }
-            else if (mask.neon)
-            {
-                compressedClipPtr = Neon.compressScalarsClip((short)maxErrorsByTrack.Length,
-                                                             compressionLevel,
-                                                             (float*)clipData.GetUnsafeReadOnlyPtr(),
-                                                             clipData.Length / maxErrorsByTrack.Length,
-                                                             sampleRate,
-                                                             (float*)maxErrorsByTrack.GetUnsafeReadOnlyPtr(),
-                                                             &outCompressedSizeInBytes);
             }
             else
             {
@@ -199,15 +154,14 @@ namespace AclUnity
         // Burst races in the Editor.
         internal static void DisposeCompressedTrack(AclCompressedClipResult clip)
         {
-            var mask = AclUnityCommon.GetArch();
-            if (mask.avx)
+            if (X86.Avx2.IsAvx2Supported)
                 AVX.disposeCompressedTracksBuffer(clip.compressedData.GetUnsafePtr());
-            else if (mask.sse4)
-                SSE4.disposeCompressedTracksBuffer(clip.compressedData.GetUnsafePtr());
-            else if (mask.neon)
-                Neon.disposeCompressedTracksBuffer(clip.compressedData.GetUnsafePtr());
             else
                 NoExtensions.disposeCompressedTracksBuffer(clip.compressedData.GetUnsafePtr());
+
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+            AtomicSafetyHandle.Release(NativeArrayUnsafeUtility.GetAtomicSafetyHandle(clip.compressedData));
+#endif
         }
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
@@ -215,6 +169,15 @@ namespace AclUnity
         {
             if (!parentIndices.IsCreated || parentIndices.Length == 0)
                 throw new ArgumentException("parentIndices is invalid");
+
+            if (parentIndices[0] != 0)
+                throw new ArgumentException("parentIndices has invalid root index");
+
+            for (int i = 1; i < parentIndices.Length; i++)
+            {
+                if (math.abs(parentIndices[i]) > i)
+                    throw new ArgumentException("parentIndices has invalid index");
+            }
         }
 
         [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
@@ -274,11 +237,8 @@ namespace AclUnity
 
         static class NoExtensions
         {
-#if UNITY_IPHONE
-            const string dllName = "__Internal";
-#else
-            const string dllName = "AclUnity";
-#endif
+            const string dllName = AclUnityCommon.dllName;
+
             [DllImport(dllName)]
             public static extern void* compressSkeletonClip(short* parentIndices,
                                                             short numBones,
@@ -307,77 +267,8 @@ namespace AclUnity
 
         static class AVX
         {
-#if UNITY_IPHONE
-            const string dllName = "__Internal";
-#else
-            const string dllName = "AclUnity_AVX";
-#endif
-            [DllImport(dllName)]
-            public static extern void* compressSkeletonClip(short* parentIndices,
-                                                            short numBones,
-                                                            short compressionLevel,
-                                                            float* aosClipData,
-                                                            int numSamples,
-                                                            float sampleRate,
-                                                            float maxDistanceError,
-                                                            float sampledErrorDistanceFromBone,
-                                                            float maxNegligibleTranslationDrift,
-                                                            float maxNegligibleScaleDrift,
-                                                            int*   outCompressedSizeInBytes);
+            const string dllName = AclUnityCommon.dllNameAVX;
 
-            [DllImport(dllName)]
-            public static extern void* compressScalarsClip(short numTracks,
-                                                           short compressionLevel,
-                                                           float* clipData,
-                                                           int numSamples,
-                                                           float sampleRate,
-                                                           float* maxErrors,
-                                                           int*   outCompressedSizeInBytes);
-
-            [DllImport(dllName)]
-            public static extern void* disposeCompressedTracksBuffer(void* compressedTracksBuffer);
-        }
-
-        static class SSE4
-        {
-#if UNITY_IPHONE
-            const string dllName = "__Internal";
-#else
-            const string dllName = "AclUnity_SSE4";
-#endif
-            [DllImport(dllName)]
-            public static extern void* compressSkeletonClip(short* parentIndices,
-                                                            short numBones,
-                                                            short compressionLevel,
-                                                            float* aosClipData,
-                                                            int numSamples,
-                                                            float sampleRate,
-                                                            float maxDistanceError,
-                                                            float sampledErrorDistanceFromBone,
-                                                            float maxNegligibleTranslationDrift,
-                                                            float maxNegligibleScaleDrift,
-                                                            int*   outCompressedSizeInBytes);
-
-            [DllImport(dllName)]
-            public static extern void* compressScalarsClip(short numTracks,
-                                                           short compressionLevel,
-                                                           float* clipData,
-                                                           int numSamples,
-                                                           float sampleRate,
-                                                           float* maxErrors,
-                                                           int*   outCompressedSizeInBytes);
-
-            [DllImport(dllName)]
-            public static extern void* disposeCompressedTracksBuffer(void* compressedTracksBuffer);
-        }
-
-        static class Neon
-        {
-#if UNITY_IPHONE
-            const string dllName = "__Internal";
-#else
-            const string dllName = "AclUnity_Neon";
-#endif
             [DllImport(dllName)]
             public static extern void* compressSkeletonClip(short* parentIndices,
                                                             short numBones,

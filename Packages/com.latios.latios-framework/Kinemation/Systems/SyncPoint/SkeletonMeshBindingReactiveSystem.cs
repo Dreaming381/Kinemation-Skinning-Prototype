@@ -317,13 +317,15 @@ namespace Latios.Kinemation.Systems
                 optimizedTypes.Add(ComponentType.ChunkComponent<ChunkPerCameraSkeletonCullingMask>());
                 optimizedTypes.Add(ComponentType.ChunkComponent<ChunkSkeletonWorldBounds>());
 
-                EntityManager.RemoveComponent<SkeletonDependent>(    m_deadMeshesQuery);
-                EntityManager.RemoveComponent(                       m_deadOptimizedSkeletonsQuery, new ComponentTypes(optimizedTypes));
-                EntityManager.RemoveComponent(                       m_deadExposedSkeletonsQuery,
-                                                                     new ComponentTypes(typeof(ExposedSkeletonCullingIndex), typeof(PerFrameSkeletonBufferMetadata),
-                                                                                        ComponentType.ChunkComponent<ChunkPerCameraSkeletonCullingMask>()));
-                EntityManager.RemoveComponent<DependentSkinnedMesh>( m_deadSkeletonsQuery);
+                EntityManager.RemoveComponent<SkeletonDependent>(        m_deadMeshesQuery);
+                EntityManager.RemoveComponent(                           m_deadOptimizedSkeletonsQuery, new ComponentTypes(optimizedTypes));
+                EntityManager.RemoveComponent(                           m_deadExposedSkeletonsQuery,
+                                                                         new ComponentTypes(typeof(ExposedSkeletonCullingIndex), typeof(PerFrameSkeletonBufferMetadata),
+                                                                                            ComponentType.ChunkComponent<ChunkPerCameraSkeletonCullingMask>()));
+                EntityManager.RemoveComponent<DependentSkinnedMesh>(     m_deadSkeletonsQuery);
 
+                // Having both causes the mesh to not render in some circumstances. Still need to investigate how this happens.
+                EntityManager.RemoveComponent<CopyLocalToParentFromBone>(m_newMeshesQuery);
                 EntityManager.AddComponent(m_newMeshesQuery, new ComponentTypes(typeof(SkeletonDependent), typeof(LocalToParent), typeof(Parent)));
 
                 optimizedTypes.Add(typeof(DependentSkinnedMesh));

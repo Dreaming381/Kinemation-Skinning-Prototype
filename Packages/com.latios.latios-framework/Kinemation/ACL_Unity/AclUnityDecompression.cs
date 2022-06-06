@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using Unity.Burst.Intrinsics;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
@@ -23,18 +24,9 @@ namespace AclUnity
             CheckCompressedClipIsValid(compressedTransformsClip);
             CheckOutputArrayIsCreated(outputBuffer);
 
-            var mask = AclUnityCommon.GetArch();
-            if (mask.avx)
+            if (X86.Avx2.IsAvx2Supported)
             {
                 AVX.samplePoseAOS(compressedTransformsClip, (float*)outputBuffer.GetUnsafePtr(), time, (byte)keyframeInterpolationMode);
-            }
-            else if (mask.sse4)
-            {
-                SSE4.samplePoseAOS(compressedTransformsClip, (float*)outputBuffer.GetUnsafePtr(), time, (byte)keyframeInterpolationMode);
-            }
-            else if (mask.neon)
-            {
-                Neon.samplePoseAOS(compressedTransformsClip, (float*)outputBuffer.GetUnsafePtr(), time, (byte)keyframeInterpolationMode);
             }
             else
             {
@@ -48,18 +40,9 @@ namespace AclUnity
             CheckCompressedClipIsValid(compressedTransformsClip);
             CheckOutputArrayIsCreated(outputBuffer);
 
-            var mask = AclUnityCommon.GetArch();
-            if (mask.avx)
+            if (X86.Avx2.IsAvx2Supported)
             {
                 AVX.samplePoseSOA(compressedTransformsClip, (float*)outputBuffer.GetUnsafePtr(), time, (byte)keyframeInterpolationMode);
-            }
-            else if (mask.sse4)
-            {
-                SSE4.samplePoseSOA(compressedTransformsClip, (float*)outputBuffer.GetUnsafePtr(), time, (byte)keyframeInterpolationMode);
-            }
-            else if (mask.neon)
-            {
-                Neon.samplePoseSOA(compressedTransformsClip, (float*)outputBuffer.GetUnsafePtr(), time, (byte)keyframeInterpolationMode);
             }
             else
             {
@@ -74,18 +57,9 @@ namespace AclUnity
 
             Qvv qvv;
 
-            var mask = AclUnityCommon.GetArch();
-            if (mask.avx)
+            if (X86.Avx2.IsAvx2Supported)
             {
                 AVX.sampleBone(compressedTransformsClip, (float*)(&qvv), boneIndex, time, (byte)keyframeInterpolationMode);
-            }
-            else if (mask.sse4)
-            {
-                SSE4.sampleBone(compressedTransformsClip, (float*)(&qvv), boneIndex, time, (byte)keyframeInterpolationMode);
-            }
-            else if (mask.neon)
-            {
-                Neon.sampleBone(compressedTransformsClip, (float*)(&qvv), boneIndex, time, (byte)keyframeInterpolationMode);
             }
             else
             {
@@ -101,18 +75,9 @@ namespace AclUnity
             CheckCompressedClipIsValid(compressedFloatsClip);
             CheckOutputArrayIsCreated(outputBuffer);
 
-            var mask = AclUnityCommon.GetArch();
-            if (mask.avx)
+            if (X86.Avx2.IsAvx2Supported)
             {
                 AVX.sampleFloats(compressedFloatsClip, (float*)outputBuffer.GetUnsafePtr(), time, (byte)keyframeInterpolationMode);
-            }
-            else if (mask.sse4)
-            {
-                SSE4.sampleFloats(compressedFloatsClip, (float*)outputBuffer.GetUnsafePtr(), time, (byte)keyframeInterpolationMode);
-            }
-            else if (mask.neon)
-            {
-                Neon.sampleFloats(compressedFloatsClip, (float*)outputBuffer.GetUnsafePtr(), time, (byte)keyframeInterpolationMode);
             }
             else
             {
@@ -125,18 +90,9 @@ namespace AclUnity
             CheckCompressedClipIsValid(compressedFloatsClip);
             CheckIndexIsValid(trackIndex);
 
-            var mask = AclUnityCommon.GetArch();
-            if (mask.avx)
+            if (X86.Avx2.IsAvx2Supported)
             {
                 return AVX.sampleFloat(compressedFloatsClip, trackIndex, time, (byte)keyframeInterpolationMode);
-            }
-            else if (mask.sse4)
-            {
-                return SSE4.sampleFloat(compressedFloatsClip, trackIndex, time, (byte)keyframeInterpolationMode);
-            }
-            else if (mask.neon)
-            {
-                return Neon.sampleFloat(compressedFloatsClip, trackIndex, time, (byte)keyframeInterpolationMode);
             }
             else
             {
@@ -176,11 +132,8 @@ namespace AclUnity
 
         static class NoExtensions
         {
-#if UNITY_IPHONE
-            const string dllName = "__Internal";
-#else
-            const string dllName = "AclUnity";
-#endif
+            const string dllName = AclUnityCommon.dllName;
+
             [DllImport(dllName)]
             public static extern void samplePoseAOS(void* compressedTransformTracks, float* aosOutputBuffer, float time, byte keyframeInterpolationMode);
 
@@ -199,57 +152,8 @@ namespace AclUnity
 
         static class AVX
         {
-#if UNITY_IPHONE
-            const string dllName = "__Internal";
-#else
-            const string dllName = "AclUnity_AVX";
-#endif
-            [DllImport(dllName)]
-            public static extern void samplePoseAOS(void* compressedTransformTracks, float* aosOutputBuffer, float time, byte keyframeInterpolationMode);
+            const string dllName = AclUnityCommon.dllNameAVX;
 
-            [DllImport(dllName)]
-            public static extern void samplePoseSOA(void* compressedTransformTracks, float* soaOutputBuffer, float time, byte keyframeInterpolationMode);
-
-            [DllImport(dllName)]
-            public static extern void sampleBone(void* compressedTransformTracks, float* boneQVV, int boneIndex, float time, byte keyframeInterpolationMode);
-
-            [DllImport(dllName)]
-            public static extern void sampleFloats(void* compressedFloatTracks, float* floatOutputBuffer, float time, byte keyframeInterpolationMode);
-
-            [DllImport(dllName)]
-            public static extern float sampleFloat(void* compressedFloatTracks, int trackIndex, float time, byte keyframeInterpolationMode);
-        }
-
-        static class SSE4
-        {
-#if UNITY_IPHONE
-            const string dllName = "__Internal";
-#else
-            const string dllName = "AclUnity_SSE4";
-#endif
-            [DllImport(dllName)]
-            public static extern void samplePoseAOS(void* compressedTransformTracks, float* aosOutputBuffer, float time, byte keyframeInterpolationMode);
-
-            [DllImport(dllName)]
-            public static extern void samplePoseSOA(void* compressedTransformTracks, float* soaOutputBuffer, float time, byte keyframeInterpolationMode);
-
-            [DllImport(dllName)]
-            public static extern void sampleBone(void* compressedTransformTracks, float* boneQVV, int boneIndex, float time, byte keyframeInterpolationMode);
-
-            [DllImport(dllName)]
-            public static extern void sampleFloats(void* compressedFloatTracks, float* floatOutputBuffer, float time, byte keyframeInterpolationMode);
-
-            [DllImport(dllName)]
-            public static extern float sampleFloat(void* compressedFloatTracks, int trackIndex, float time, byte keyframeInterpolationMode);
-        }
-
-        static class Neon
-        {
-#if UNITY_IPHONE
-            const string dllName = "__Internal";
-#else
-            const string dllName = "AclUnity_Neon";
-#endif
             [DllImport(dllName)]
             public static extern void samplePoseAOS(void* compressedTransformTracks, float* aosOutputBuffer, float time, byte keyframeInterpolationMode);
 

@@ -301,7 +301,8 @@ namespace Latios.Kinemation
         public int                       weightsUploadMetaBufferWriteCount;
         public int                       bindPosesUploadMetaBufferWriteCount;
         public int                       boneOffsetsUploadMetaBufferWriteCount;
-        public bool                      needsCommitment;
+        public bool                      needsMeshCommitment;
+        public bool                      needsBoneOffsetCommitment;
 
         public Type AssociatedComponentType => typeof(GpuUploadBuffersTag);
 

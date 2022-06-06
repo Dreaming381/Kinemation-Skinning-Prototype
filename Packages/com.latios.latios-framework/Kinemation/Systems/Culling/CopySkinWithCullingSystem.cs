@@ -31,7 +31,8 @@ namespace Latios.Kinemation.Systems
                 entityHandle             = GetEntityTypeHandle(),
                 sife                     = GetStorageInfoFromEntity(),
                 chunkPerCameraMaskHandle = GetComponentTypeHandle<ChunkPerCameraCullingMask>(false),
-                computeCdfe              = GetComponentDataFromEntity<ComputeDeformShaderIndex>(false)
+                computeCdfe              = GetComponentDataFromEntity<ComputeDeformShaderIndex>(false),
+                linearBlendCdfe          = GetComponentDataFromEntity<LinearBlendSkinningShaderIndex>(false)
             }.ScheduleParallel(m_metaQuery, Dependency);
         }
 

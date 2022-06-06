@@ -106,6 +106,13 @@ namespace Latios.Kinemation.Authoring.Systems
                 return false;
             }
 
+            var shadowHierarchy = BuildHierarchyFromShadow(context);
+            if (!shadowHierarchy.isCreated)
+            {
+                // Assume error has already been logged.
+                return false;
+            }
+
             var allocator                    = World.UpdateAllocator.ToAllocator;
             converter.parents                = new UnsafeList<int>(context.skeleton.Length, allocator);
             converter.hasParentScaleInverses = new UnsafeList<bool>(context.skeleton.Length, allocator);
@@ -117,7 +124,6 @@ namespace Latios.Kinemation.Authoring.Systems
                 converter.hasParentScaleInverses[i] = context.skeleton[i].ignoreParentScale;
             }
 
-            var shadowHierarchy      = BuildHierarchyFromShadow(context);
             converter.clipsToConvert = new UnsafeList<SkeletonClipSetConverter.SkeletonClipConversionData>(input.clips.Length, allocator);
             converter.clipsToConvert.Resize(input.clips.Length);
             int targetClip = 0;
@@ -136,30 +142,103 @@ namespace Latios.Kinemation.Authoring.Systems
             return true;
         }
 
-        Queue<Transform> m_breadthQueeue = new Queue<Transform>();
+        Queue<Transform>                               m_breadthQueeue  = new Queue<Transform>();
+        List<(Transform, HideThis.ShadowCloneTracker)> m_hierarchyCache = new List<(Transform, HideThis.ShadowCloneTracker)>();
 
-        // Todo: Exposed and exported bones should always have a mapping in the skeleton definition
-        // and consequently the shadow skeleton can track them. Optimized bones can't have their names
-        // altered between import and deoptimization, so the optimized bone subtree underneath an exposed
-        // bone can use path matching. The only failure case is if an optimized bone's path gets altered.
+        // Todo: If a single bone doesn't match, this currently fails entirely. Is that the correct solution?
+        // The only failure case is if an optimized bone's path gets altered.
         // In that case, it might be best to log a warning and assign the skeleton definition's transform
         // to all samples for that bone.
-        TransformAccessArray BuildHierarchyFromShadow(SkeletonConversionContext context)
+        unsafe TransformAccessArray BuildHierarchyFromShadow(SkeletonConversionContext context)
         {
             var boneCount = context.skeleton.Length;
             var result    = new TransformAccessArray(boneCount);
             m_breadthQueeue.Clear();
+            m_hierarchyCache.Clear();
 
             var root = context.shadowHierarchy.transform;
             m_breadthQueeue.Enqueue(root);
             while (m_breadthQueeue.Count > 0)
             {
-                var bone = m_breadthQueeue.Dequeue();
-                result.Add(bone);
+                var bone    = m_breadthQueeue.Dequeue();
+                var tracker = bone.GetComponent<HideThis.ShadowCloneTracker>();
+                m_hierarchyCache.Add((bone, tracker));
+
                 for (int i = 0; i < bone.childCount; i++)
                 {
                     m_breadthQueeue.Enqueue(bone.GetChild(i));
                 }
+            }
+
+            int boneIndex = 0;
+            foreach (var registeredBone in context.skeleton)
+            {
+                bool found = false;
+
+                if (registeredBone.gameObjectTransform != null)
+                {
+                    // The shadow hierarchy is an exact replica of the current hierarchy.
+                    // And while the skeleton structure may have been modified, this reference
+                    // persists through the current hierarchy at conversion time.
+                    foreach ((var shadowBone, var tracker) in m_hierarchyCache)
+                    {
+                        if (tracker != null && tracker.source.transform == registeredBone.gameObjectTransform)
+                        {
+                            result.Add(shadowBone);
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    // The bone is optimized, meaning that its name in the shadow hierarchy
+                    // should match the name in the skeleton definition and the ancestry up
+                    // to the first exposed or exported bone.
+                    FixedString4096Bytes registeredPath      = registeredBone.hierarchyReversePath;
+                    int                  ancestorsToTraverse = 0;
+                    int                  currentParentIndex  = registeredBone.parentIndex;
+                    for (var t = registeredBone.gameObjectTransform; t == null; ancestorsToTraverse++)
+                    {
+                        t                  = context.skeleton[currentParentIndex].gameObjectTransform;
+                        currentParentIndex = context.skeleton[currentParentIndex].parentIndex;
+                    }
+
+                    foreach ((var shadowBone, var _) in m_hierarchyCache)
+                    {
+                        FixedString4096Bytes shadowPath      = default;
+                        var                  shadowTransform = shadowBone;
+                        bool                 skip            = false;
+                        for (int i = 0; i < ancestorsToTraverse; i++)
+                        {
+                            shadowPath.Append(shadowTransform.gameObject.name);
+                            shadowPath.Append('/');
+                            shadowTransform = shadowTransform.parent;
+                            if (shadowTransform == null)
+                            {
+                                skip = true;
+                                break;
+                            }
+                        }
+                        if (!skip && UnsafeUtility.MemCmp(shadowPath.GetUnsafePtr(), registeredPath.GetUnsafePtr(), shadowPath.Length) == 0)
+                        {
+                            found = true;
+                            result.Add(shadowBone);
+                            break;
+                        }
+                    }
+                }
+
+                if (!found)
+                {
+                    // We didn't find a match. Log and return an uncreated array so that the filter can further error handle.
+                    Debug.LogError(
+                        $"Conversion of an animation clip failed for animator {context.animator.gameObject.name} because no matching bone data was found for bone index {boneIndex} with path: {registeredBone.hierarchyReversePath}\nPlease ensure the gameObjectTransform is a valid descendent, or in the case of an optimized out bone, that its hierarchyReversedPath is correct.");
+                    result.Dispose();
+                    return default;
+                }
+
+                boneIndex++;
             }
 
             return result;
@@ -171,7 +250,6 @@ namespace Latios.Kinemation.Authoring.Systems
             int requiredTransforms = requiredSamples * shadowHierarchy.length;
             var result             = new UnsafeList<BoneTransform>(requiredTransforms, allocator);
             result.Resize(requiredTransforms);
-            var boneTransforms = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<BoneTransform>(result.Ptr, requiredTransforms, Allocator.None);
 
             var oldWrapMode = clip.wrapMode;
             clip.wrapMode   = WrapMode.Clamp;
@@ -179,7 +257,7 @@ namespace Latios.Kinemation.Authoring.Systems
             float timestep  = math.rcp(clip.frameRate);
             var   job       = new CaptureSampledBonesJob
             {
-                boneTransforms = boneTransforms,
+                boneTransforms = result,
                 samplesPerBone = requiredSamples,
                 currentSample  = 0
             };
@@ -199,9 +277,10 @@ namespace Latios.Kinemation.Authoring.Systems
         [BurstCompile]
         struct CaptureSampledBonesJob : IJobParallelForTransform
         {
-            public NativeArray<BoneTransform> boneTransforms;
-            public int                        samplesPerBone;
-            public int                        currentSample;
+            // Todo: This throws not created error on job schedule.
+            public UnsafeList<BoneTransform> boneTransforms;
+            public int                       samplesPerBone;
+            public int                       currentSample;
 
             public void Execute(int index, TransformAccess transform)
             {
@@ -261,6 +340,10 @@ namespace Latios.Kinemation.Authoring.Systems
                 var qvvArray = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<AclUnity.Qvv>(clip.sampledLocalTransforms.Ptr,
                                                                                                        clip.sampledLocalTransforms.Length,
                                                                                                        Allocator.None);
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+                var safety = AtomicSafetyHandle.Create();
+                NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref qvvArray, safety);
+#endif
 
                 // Step 4: Compress
                 var compressedClip = AclUnity.Compression.CompressSkeletonClip(parentIndices, qvvArray, clip.sampleRate, aclSettings);
@@ -268,12 +351,15 @@ namespace Latios.Kinemation.Authoring.Systems
                 // Step 5: Build blob clip
                 blobClips[targetClip]          = default;
                 blobClips[targetClip].name     = clip.clipName;
-                blobClips[targetClip].duration = clip.sampleRate * (qvvArray.Length / parents.Length);
+                blobClips[targetClip].duration = math.rcp(clip.sampleRate) * (qvvArray.Length / parents.Length);
                 var compressedData             = builder.Allocate(ref blobClips[targetClip].compressedClipDataAligned16, compressedClip.compressedDataToCopyFrom.Length, 16);
                 UnsafeUtility.MemCpy(compressedData.GetUnsafePtr(), compressedClip.compressedDataToCopyFrom.GetUnsafeReadOnlyPtr(), compressedClip.compressedDataToCopyFrom.Length);
 
-                // Step 6: Dispose blob
+                // Step 6: Dispose ACL memory and safety
                 compressedClip.Dispose();
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+                AtomicSafetyHandle.Release(safety);
+#endif
 
                 targetClip++;
             }
@@ -282,4 +368,6 @@ namespace Latios.Kinemation.Authoring.Systems
         }
     }
 }
+
+;
 

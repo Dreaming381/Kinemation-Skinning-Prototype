@@ -43,13 +43,14 @@ namespace Latios.Kinemation.Systems
 
             GpuUploadBuffers newBuffers = default;
 
+            var requiredSizes          = meshGpuManager.requiredBufferSizes.Value;
+            newBuffers.verticesBuffer  = bufferManager.pool.GetMeshVerticesBuffer(requiredSizes.requiredVertexBufferSize);
+            newBuffers.weightsBuffer   = bufferManager.pool.GetMeshWeightsBuffer(requiredSizes.requiredWeightBufferSize);
+            newBuffers.bindPosesBuffer = bufferManager.pool.GetMeshBindPosesBuffer(requiredSizes.requiredBindPoseBufferSize);
+
             if (!meshGpuManager.uploadCommands.IsEmpty)
             {
                 var uploadCount                                = meshGpuManager.uploadCommands.Length;
-                var requiredSizes                              = meshGpuManager.requiredBufferSizes.Value;
-                newBuffers.verticesBuffer                      = bufferManager.pool.GetMeshVerticesBuffer(requiredSizes.requiredVertexBufferSize);
-                newBuffers.weightsBuffer                       = bufferManager.pool.GetMeshWeightsBuffer(requiredSizes.requiredWeightBufferSize);
-                newBuffers.bindPosesBuffer                     = bufferManager.pool.GetMeshBindPosesBuffer(requiredSizes.requiredBindPoseBufferSize);
                 newBuffers.verticesUploadBuffer                = bufferManager.pool.GetMeshVerticesUploadBuffer(requiredSizes.requiredVertexUploadSize);
                 newBuffers.weightsUploadBuffer                 = bufferManager.pool.GetMeshWeightsUploadBuffer(requiredSizes.requiredWeightUploadSize);
                 newBuffers.bindPosesUploadBuffer               = bufferManager.pool.GetMeshBindPosesUploadBuffer(requiredSizes.requiredBindPoseUploadSize);
@@ -68,7 +69,7 @@ namespace Latios.Kinemation.Systems
                 var mappedVerticesMeta                         = newBuffers.verticesUploadMetaBuffer.BeginWrite<uint3>(0, uploadCount);
                 var mappedWeightsMeta                          = newBuffers.weightsUploadMetaBuffer.BeginWrite<uint3>(0, uploadCount);
                 var mappedBindPosesMeta                        = newBuffers.bindPosesUploadMetaBuffer.BeginWrite<uint3>(0, uploadCount);
-                newBuffers.needsCommitment                     = true;
+                newBuffers.needsMeshCommitment                 = true;
 
                 ref var allocator     = ref World.UpdateAllocator;
                 var     verticesSums  = allocator.AllocateNativeArray<int>(meshGpuManager.uploadCommands.Length);
@@ -113,19 +114,21 @@ namespace Latios.Kinemation.Systems
             }
 
             JobHandle jho = default;
+
+            int boneOffsetsSize          = boneOffsetsGpuManager.offsets.Length;
+            int boneOffsetsGpuSize       = boneOffsetsSize / 2;
+            newBuffers.boneOffsetsBuffer = bufferManager.pool.GetBoneOffsetsBuffer(boneOffsetsGpuSize);
+
             if (boneOffsetsGpuManager.isDirty.Value)
             {
-                int boneOffsetsSize                              = boneOffsetsGpuManager.offsets.Length;
-                int boneOffsetsGpuSize                           = boneOffsetsSize / 2;
                 int metaCount                                    = (int)math.ceil(boneOffsetsGpuSize / 64f);
-                newBuffers.boneOffsetsBuffer                     = bufferManager.pool.GetBoneOffsetsBuffer(boneOffsetsGpuSize);
                 newBuffers.boneOffsetsUploadBuffer               = bufferManager.pool.GetBoneOffsetsUploadBuffer(boneOffsetsGpuSize);
                 newBuffers.boneOffsetsUploadMetaBuffer           = bufferManager.pool.GetUploadMetaBuffer(boneOffsetsGpuSize);
                 newBuffers.boneOffsetsUploadBufferWriteCount     = boneOffsetsGpuSize;
                 newBuffers.boneOffsetsUploadMetaBufferWriteCount = metaCount;
                 var mappedBoneOffsets                            = newBuffers.boneOffsetsUploadBuffer.BeginWrite<uint>(0, boneOffsetsGpuSize);
                 var mappedBoneOffsetsMeta                        = newBuffers.boneOffsetsUploadMetaBuffer.BeginWrite<uint3>(0, metaCount);
-                newBuffers.needsCommitment                       = true;
+                newBuffers.needsBoneOffsetCommitment             = true;
 
                 jho = new UploadBoneOffsetsJob
                 {
@@ -142,7 +145,7 @@ namespace Latios.Kinemation.Systems
             jhs.Add(jho);
             Dependency = JobHandle.CombineDependencies(jhs);
 
-            if (newBuffers.needsCommitment)
+            if (newBuffers.needsMeshCommitment || newBuffers.needsBoneOffsetCommitment)
             {
                 worldBlackboardEntity.SetCollectionComponentAndDisposeOld(newBuffers);
                 Dependency = new ClearCommandsJob { commands = meshGpuManager.uploadCommands, isDirty = boneOffsetsGpuManager.isDirty }.Schedule(Dependency);
@@ -274,7 +277,7 @@ namespace Latios.Kinemation.Systems
             {
                 int index         = startIndex / 128;
                 mappedMeta[index] = (uint3) new int3(startIndex / 2, startIndex / 2, count / 2);
-                for (int i = startIndex; i < count; i += 2)
+                for (int i = startIndex; i < startIndex + count; i += 2)
                 {
 #pragma warning disable CS0675  // Bitwise-or operator used on a sign-extended operand
                     uint packed = (((uint)offsets[i + 1]) << 16) | ((uint)offsets[i]);

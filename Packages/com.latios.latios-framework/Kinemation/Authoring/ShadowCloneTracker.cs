@@ -9,7 +9,6 @@ namespace Latios.Kinemation.Authoring
         public class ShadowCloneTracker : MonoBehaviour
         {
             public GameObject source;
-            public int        index;
         }
     }
 }

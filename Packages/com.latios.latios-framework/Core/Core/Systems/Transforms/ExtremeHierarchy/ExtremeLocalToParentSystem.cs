@@ -418,7 +418,11 @@ namespace Latios.Systems
 
             public void Execute(int index)
             {
-                var  batchInChunk            = chunkList[index];
+                var batchInChunk = chunkList[index];
+
+                if (!batchInChunk.Has(childHandle))
+                    return;
+
                 bool updateChildrenTransform =
                     batchInChunk.DidChange(ltwHandle, lastSystemVersion) ||
                     batchInChunk.DidChange(childHandle, lastSystemVersion);

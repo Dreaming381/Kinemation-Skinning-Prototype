@@ -157,6 +157,9 @@ namespace Latios.Kinemation.Authoring.Systems
 
             if (!excludeRootFromPath)
             {
+                var unshadowedRoot = t.GetComponent<HideThis.ShadowCloneTracker>();
+                if (unshadowedRoot != null)
+                    t = unshadowedRoot.source.transform;
                 m_stringBuilderCache.Append(t.gameObject.name);
                 m_stringBuilderCache.Append('/');
             }

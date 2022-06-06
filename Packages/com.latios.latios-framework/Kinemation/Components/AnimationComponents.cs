@@ -51,13 +51,19 @@ namespace Latios.Kinemation
         public float               duration;
         public FixedString128Bytes name;
 
-        public unsafe BoneTransform SampleBone(int boneIndex, float time, KeyframeInterpolationMode keyframeInterpolationMode = KeyframeInterpolationMode.Interpolate)
+        public float LoopToClipTime(float time)
         {
-            var   mode         = (AclUnity.Decompression.KeyframeInterpolationMode)keyframeInterpolationMode;
             float wrappedTime  = math.fmod(time, duration);
             wrappedTime       += math.select(0f, duration, wrappedTime < 0f);
+            return wrappedTime;
+        }
 
-            var qvv = AclUnity.Decompression.SampleBone(compressedClipDataAligned16.GetUnsafePtr(), boneIndex, wrappedTime, mode);
+        public unsafe BoneTransform SampleBone(int boneIndex, float time, KeyframeInterpolationMode keyframeInterpolationMode = KeyframeInterpolationMode.Interpolate)
+        {
+            var mode = (AclUnity.Decompression.KeyframeInterpolationMode)keyframeInterpolationMode;
+
+            // Note: ACL clamps time, so we don't need to worry about it.
+            var qvv = AclUnity.Decompression.SampleBone(compressedClipDataAligned16.GetUnsafePtr(), boneIndex, time, mode);
             return new BoneTransform(qvv);
         }
 
