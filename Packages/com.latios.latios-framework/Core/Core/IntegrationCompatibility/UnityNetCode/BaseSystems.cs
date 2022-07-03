@@ -39,7 +39,8 @@ namespace Latios.Compatibility.UnityNetCode
 #if ENABLE_UNITY_COLLECTIONS_CHECKS && !UNITY_DOTSRUNTIME
             this.ClearSystemIds();
 #endif
-
+            LatiosWorld lw = World as LatiosWorld;
+            lw.FrameStart();
             SuperSystem.DoSuperSystemUpdate(this, ref m_tracker);
         }
     }
@@ -76,7 +77,8 @@ namespace Latios.Compatibility.UnityNetCode
 #if ENABLE_UNITY_COLLECTIONS_CHECKS && !UNITY_DOTSRUNTIME
             this.ClearSystemIds();
 #endif
-
+            LatiosWorld lw = World as LatiosWorld;
+            lw.FrameStart();
             SuperSystem.DoSuperSystemUpdate(this, ref m_tracker);
         }
     }

@@ -461,13 +461,13 @@ namespace Latios.Authoring.Systems
             {
                 PostFilter(postFilter, ref context);
             }
-            catch(System.Exception e)
+            catch
             {
                 inputToFilteredMapping.Dispose();
                 context.Dispose();
                 filteredConverters.Dispose();
                 filteredToInputMapping.Dispose();
-                throw e;
+                throw;
             }
 
             // Step 4: Build blobs and hashes

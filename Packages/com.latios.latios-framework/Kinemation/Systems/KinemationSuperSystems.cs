@@ -10,8 +10,12 @@ using UnityEngine.Rendering;
 
 namespace Latios.Kinemation.Systems
 {
+    /// <summary>
+    /// Subclass this class and add it to the world prior to installing Kinemation
+    /// to customize the culling loop.
+    /// </summary>
     [DisableAutoCreation]
-    internal class KinemationCullingSuperSystem : SuperSystem
+    public class KinemationCullingSuperSystem : SuperSystem
     {
         protected override void CreateSystems()
         {

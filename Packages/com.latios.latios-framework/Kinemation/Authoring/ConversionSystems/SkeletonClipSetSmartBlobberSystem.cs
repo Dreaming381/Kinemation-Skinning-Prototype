@@ -14,26 +14,70 @@ using UnityEngine.Jobs;
 
 namespace Latios.Kinemation.Authoring
 {
+    /// <summary>
+    /// Defines a skeleton animation clip as well as its compression settings
+    /// </summary>
     public struct SkeletonClipConfig
     {
         public AnimationClip                   clip;
         public SkeletonClipCompressionSettings settings;
     }
 
+    /// <summary>
+    /// Input for the SkeletonClipSetBlob Smart Blobber
+    /// </summary>
     public struct SkeletonClipSetBakeData
     {
-        public Animator             animator;
+        /// <summary>
+        /// The UnityEngine.Animator that should sample this clip.
+        /// The animator's GameObject must be a target for conversion.
+        /// The converted clip will only work correctly with that GameObject's converted skeleton entity
+        /// or another skeleton entity with an identical hierarchy.
+        /// </summary>
+        public Animator animator;
+        /// <summary>
+        /// The list of clips and their compression settings which should be baked into the clip set.
+        /// </summary>
         public SkeletonClipConfig[] clips;
     }
 
+    /// <summary>
+    /// Compression settings for a skeleton animation clip.
+    /// </summary>
     public struct SkeletonClipCompressionSettings
     {
+        /// <summary>
+        /// Higher levels lead to longer compression time but more compressed clips.
+        /// Values range from 0 to 4. Typical default is 2.
+        /// </summary>
         public short compressionLevel;
+        /// <summary>
+        /// The maximum distance a point sampled some distance away from the bone can
+        /// deviate from the original authored animation due to lossy compression.
+        /// Typical default is one ten-thousandth of a Unity unit.
+        /// </summary>
         public float maxDistanceError;
+        /// <summary>
+        /// How far away from the bone points are sampled when evaluating distance error.
+        /// Defaults to 3% of a Unity unit.
+        /// </summary>
         public float sampledErrorDistanceFromBone;
+        /// <summary>
+        /// The noise threshold for scale animation to be considered constant for a brief time range.
+        /// Defaults to 1 / 100_000.
+        /// </summary>
         public float maxNegligibleTranslationDrift;
+        /// <summary>
+        /// The noise threshold for translation animation to be considered constant for a brief time range.
+        /// Defaults to 1 / 100_000.
+        /// </summary>
         public float maxNegligibleScaleDrift;
 
+        /// <summary>
+        /// Default animation clip compression settings. These provide relative fast compression,
+        /// decently small clip sizes, and typically acceptable accuracy.
+        /// (The accuracy is way higher than Unity's default animation compression)
+        /// </summary>
         public static readonly SkeletonClipCompressionSettings kDefaultSettings = new SkeletonClipCompressionSettings
         {
             compressionLevel              = 2,
@@ -44,8 +88,18 @@ namespace Latios.Kinemation.Authoring
         };
     }
 
-    public static class AudioClipBlobberAPIExtensions
+    public static class SkeletonClipBlobberAPIExtensions
     {
+        /// <summary>
+        /// Requests creation of a SkeletonClipSetBlob by a Smart Blobber.
+        /// This method must be called before the Smart Blobber is executed, such as during IRequestBlobAssets.
+        /// </summary>
+        /// <param name="gameObject">
+        /// The Game Object to be converted that this blob should primarily be associated with.
+        /// It is usually okay if this isn't quite accurate, such as if the blob will be added to multiple entities.
+        /// </param>
+        /// <param name="bakeData">The inputs used to generate the blob asset</param>
+        /// <returns>Returns a handle that can be resolved into a blob asset after the Smart Blobber has executed, such as during IConvertGameObjectToEntity</returns>
         public static SmartBlobberHandle<SkeletonClipSetBlob> CreateBlob(this GameObjectConversionSystem conversionSystem,
                                                                          GameObject gameObject,
                                                                          SkeletonClipSetBakeData bakeData)
@@ -53,6 +107,16 @@ namespace Latios.Kinemation.Authoring
             return conversionSystem.World.GetExistingSystem<Systems.SkeletonClipSetSmartBlobberSystem>().AddToConvert(gameObject, bakeData);
         }
 
+        /// <summary>
+        /// Requests creation of a SkeletonClipSetBlob by a Smart Blobber.
+        /// This method must be called before the Smart Blobber is executed, such as during IRequestBlobAssets.
+        /// </summary>
+        /// <param name="gameObject">
+        /// The Game Object to be converted that this blob should primarily be associated with.
+        /// It is usually okay if this isn't quite accurate, such as if the blob will be added to multiple entities.
+        /// </param>
+        /// <param name="bakeData">The inputs used to generate the blob asset</param>
+        /// <returns>Returns a handle that can be resolved into an untyped blob asset after the Smart Blobber has executed, such as during IConvertGameObjectToEntity</returns>
         public static SmartBlobberHandleUntyped CreateBlobUntyped(this GameObjectConversionSystem conversionSystem,
                                                                   GameObject gameObject,
                                                                   SkeletonClipSetBakeData bakeData)
@@ -64,7 +128,7 @@ namespace Latios.Kinemation.Authoring
 
 namespace Latios.Kinemation.Authoring.Systems
 {
-    [ConverterVersion("Latios", 1)]
+    [ConverterVersion("Latios", 2)]
     [DisableAutoCreation]
     public class SkeletonClipSetSmartBlobberSystem : SmartBlobberConversionSystem<SkeletonClipSetBlob, SkeletonClipSetBakeData, SkeletonClipSetConverter>
     {
@@ -136,6 +200,7 @@ namespace Latios.Kinemation.Authoring.Systems
                     settings               = clip.settings,
                     sampledLocalTransforms = SampleClip(shadowHierarchy, clip.clip, allocator)
                 };
+                targetClip++;
             }
             shadowHierarchy.Dispose();
 
@@ -166,7 +231,9 @@ namespace Latios.Kinemation.Authoring.Systems
 
                 for (int i = 0; i < bone.childCount; i++)
                 {
-                    m_breadthQueeue.Enqueue(bone.GetChild(i));
+                    var child = bone.GetChild(i);
+                    if (child.GetComponent<SkinnedMeshRenderer>() == null)
+                        m_breadthQueeue.Enqueue(bone.GetChild(i));
                 }
             }
 
@@ -349,10 +416,13 @@ namespace Latios.Kinemation.Authoring.Systems
                 var compressedClip = AclUnity.Compression.CompressSkeletonClip(parentIndices, qvvArray, clip.sampleRate, aclSettings);
 
                 // Step 5: Build blob clip
-                blobClips[targetClip]          = default;
-                blobClips[targetClip].name     = clip.clipName;
-                blobClips[targetClip].duration = math.rcp(clip.sampleRate) * (qvvArray.Length / parents.Length);
-                var compressedData             = builder.Allocate(ref blobClips[targetClip].compressedClipDataAligned16, compressedClip.compressedDataToCopyFrom.Length, 16);
+                blobClips[targetClip]            = default;
+                blobClips[targetClip].name       = clip.clipName;
+                blobClips[targetClip].duration   = math.rcp(clip.sampleRate) * (qvvArray.Length / parents.Length);
+                blobClips[targetClip].boneCount  = root.boneCount;
+                blobClips[targetClip].sampleRate = clip.sampleRate;
+
+                var compressedData = builder.Allocate(ref blobClips[targetClip].compressedClipDataAligned16, compressedClip.compressedDataToCopyFrom.Length, 16);
                 UnsafeUtility.MemCpy(compressedData.GetUnsafePtr(), compressedClip.compressedDataToCopyFrom.GetUnsafeReadOnlyPtr(), compressedClip.compressedDataToCopyFrom.Length);
 
                 // Step 6: Dispose ACL memory and safety

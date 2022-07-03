@@ -75,6 +75,9 @@ namespace Latios.Kinemation.Systems
 
                         var chunk = chunkHeader.ArchetypeChunk;
 
+                        if (!chunk.Has(dependentHandle))
+                            continue;
+
                         var rootRefs = chunk.GetNativeArray(dependentHandle);
 
                         var        lodWord = chunkEntityLodEnabled.Enabled[0];

@@ -56,7 +56,7 @@ namespace Latios.Kinemation.Authoring.Systems
                         {
                             var boneEntity                                                              = GetPrimaryEntity(b.gameObjectTransform);
                             ecb.AddComponent(boneEntity, new BoneOwningSkeletonReference { skeletonRoot = entity });
-                            if (b.gameObjectTransform != context.animator.transform)
+                            if (b.gameObjectTransform.parent == context.animator.transform)
                             {
                                 ecb.AddComponent(boneEntity, new CopyLocalToParentFromBone { boneIndex = i });
                                 ecb.RemoveComponent(boneEntity, transformComponentsToRemove);

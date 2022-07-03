@@ -317,15 +317,24 @@ namespace Latios.Kinemation.Systems
                 optimizedTypes.Add(ComponentType.ChunkComponent<ChunkPerCameraSkeletonCullingMask>());
                 optimizedTypes.Add(ComponentType.ChunkComponent<ChunkSkeletonWorldBounds>());
 
-                EntityManager.RemoveComponent<SkeletonDependent>(        m_deadMeshesQuery);
-                EntityManager.RemoveComponent(                           m_deadOptimizedSkeletonsQuery, new ComponentTypes(optimizedTypes));
-                EntityManager.RemoveComponent(                           m_deadExposedSkeletonsQuery,
-                                                                         new ComponentTypes(typeof(ExposedSkeletonCullingIndex), typeof(PerFrameSkeletonBufferMetadata),
-                                                                                            ComponentType.ChunkComponent<ChunkPerCameraSkeletonCullingMask>()));
-                EntityManager.RemoveComponent<DependentSkinnedMesh>(     m_deadSkeletonsQuery);
+                EntityManager.RemoveComponent<SkeletonDependent>(    m_deadMeshesQuery);
+                EntityManager.RemoveComponent(                       m_deadOptimizedSkeletonsQuery, new ComponentTypes(optimizedTypes));
+                EntityManager.RemoveComponent(                       m_deadExposedSkeletonsQuery,
+                                                                     new ComponentTypes(typeof(ExposedSkeletonCullingIndex), typeof(PerFrameSkeletonBufferMetadata),
+                                                                                        ComponentType.ChunkComponent<ChunkPerCameraSkeletonCullingMask>()));
+                EntityManager.RemoveComponent<DependentSkinnedMesh>( m_deadSkeletonsQuery);
 
+                var transformComponentsThatWriteToLocalToParent = new FixedList128Bytes<ComponentType>();
                 // Having both causes the mesh to not render in some circumstances. Still need to investigate how this happens.
-                EntityManager.RemoveComponent<CopyLocalToParentFromBone>(m_newMeshesQuery);
+                transformComponentsThatWriteToLocalToParent.Add(typeof(CopyLocalToParentFromBone));
+                transformComponentsThatWriteToLocalToParent.Add(typeof(Translation));
+                transformComponentsThatWriteToLocalToParent.Add(typeof(Rotation));
+                transformComponentsThatWriteToLocalToParent.Add(typeof(Scale));
+                transformComponentsThatWriteToLocalToParent.Add(typeof(NonUniformScale));
+                transformComponentsThatWriteToLocalToParent.Add(typeof(ParentScaleInverse));
+                transformComponentsThatWriteToLocalToParent.Add(typeof(CompositeRotation));
+                transformComponentsThatWriteToLocalToParent.Add(typeof(CompositeScale));
+                EntityManager.RemoveComponent(m_newMeshesQuery, new ComponentTypes(transformComponentsThatWriteToLocalToParent));
                 EntityManager.AddComponent(m_newMeshesQuery, new ComponentTypes(typeof(SkeletonDependent), typeof(LocalToParent), typeof(Parent)));
 
                 optimizedTypes.Add(typeof(DependentSkinnedMesh));
@@ -1004,7 +1013,6 @@ namespace Latios.Kinemation.Systems
                             {
                                 ref var entry = ref boneManager.entries.ElementAt(entryIndex);
                                 entry.overridesReferences++;
-                                resultState.boneOffsetEntryIndex = entryIndex;
                             }
                             else
                             {
@@ -1056,8 +1064,9 @@ namespace Latios.Kinemation.Systems
                             }
 
                             op.overrideBoneBindings.Dispose();
-                            resultState.skeletonBindingBlob = default;
-                            resultState.meshBindingBlob     = default;
+                            resultState.skeletonBindingBlob  = default;
+                            resultState.meshBindingBlob      = default;
+                            resultState.boneOffsetEntryIndex = entryIndex;
                         }
                         else
                         {
@@ -1066,7 +1075,6 @@ namespace Latios.Kinemation.Systems
                             {
                                 ref var entry = ref boneManager.entries.ElementAt(entryIndex);
                                 entry.pathsReferences++;
-                                resultState.boneOffsetEntryIndex = entryIndex;
                             }
                             else
                             {
@@ -1087,7 +1095,6 @@ namespace Latios.Kinemation.Systems
                                 {
                                     ref var entry = ref boneManager.entries.ElementAt(entryIndex);
                                     entry.pathsReferences++;
-                                    resultState.boneOffsetEntryIndex = entryIndex;
                                 }
                                 else
                                 {
@@ -1143,6 +1150,7 @@ namespace Latios.Kinemation.Systems
                                 resultState.skeletonBindingBlob = op.skeletonBindingPathsBlob;
                                 resultState.meshBindingBlob     = op.meshBindingPathsBlob;
                             }
+                            resultState.boneOffsetEntryIndex = entryIndex;
                         }
                     }
 

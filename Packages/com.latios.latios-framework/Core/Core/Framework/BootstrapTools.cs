@@ -13,6 +13,10 @@ using Unity.Entities.Exposed;
 
 namespace Latios
 {
+    /// <summary>
+    /// Add this attribute to a system to prevent the system from being injected into the default group.
+    /// Only works when using an injection method in BootstrapTools.
+    /// </summary>
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = false, Inherited = true)]
     public class NoGroupInjectionAttribute : Attribute
     {

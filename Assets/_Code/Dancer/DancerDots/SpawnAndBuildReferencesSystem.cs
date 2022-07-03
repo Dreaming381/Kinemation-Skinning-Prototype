@@ -36,7 +36,7 @@ namespace Dragons
             {
                 var smr = hybrid.dancerGoPrefab.GetComponentInChildren<SkinnedMeshRenderer>();
                 if (EntityManager.HasComponent<BoneReference>(spawner.dancerPrefab))
-                    hybrid.bonesPerReference = EntityManager.GetBuffer<LinkedEntityGroup>(spawner.dancerPrefab, true).Length;
+                    hybrid.bonesPerReference = EntityManager.GetBuffer<BoneReference>(spawner.dancerPrefab, true).Length;
                 else
                     hybrid.bonesPerReference = EntityManager.GetBuffer<OptimizedBoneToRoot>(spawner.dancerPrefab, true).Length;
 

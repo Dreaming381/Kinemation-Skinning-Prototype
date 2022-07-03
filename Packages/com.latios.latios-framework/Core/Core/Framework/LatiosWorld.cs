@@ -10,12 +10,21 @@ using Latios.Systems;
 
 namespace Latios
 {
+    /// <summary>
+    /// A specialized runtime World which contains Latios Framework core functionality.
+    /// </summary>
     public class LatiosWorld : World
     {
+        /// <summary>
+        /// The worldBlackboardEntity associated with this world
+        /// </summary>
         public BlackboardEntity worldBlackboardEntity { get; private set; }
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
         private BlackboardEntity m_sceneBlackboardEntity;
         private bool m_sceneBlackboardSafetyOverride;
+        /// <summary>
+        /// The current sceneBlackboardEntity associated with this world
+        /// </summary>
         public BlackboardEntity sceneBlackboardEntity
         {
             get
@@ -32,7 +41,10 @@ namespace Latios
 #else
         public BlackboardEntity sceneBlackboardEntity { get; private set; }
 #endif
-
+        /// <summary>
+        /// The main syncPoint system from which to get command buffers.
+        /// Command buffers retrieved from this property will have dependencies managed automatically
+        /// </summary>
         public SyncPointPlaybackSystem syncPoint
         {
             get
@@ -42,10 +54,23 @@ namespace Latios
             }
             set => m_syncPointPlaybackSystem = value;
         }
+        /// <summary>
+        /// The InitializationSystemGroup of this world for convenience
+        /// </summary>
         public InitializationSystemGroup initializationSystemGroup => m_initializationSystemGroup;
+        /// <summary>
+        /// The SimulationSystemGroup of this world for convenience
+        /// </summary>
         public SimulationSystemGroup simulationSystemGroup => m_simulationSystemGroup;
+        /// <summary>
+        /// The PresentationsystemGroup of this world for convenience. It is null for NetCode server worlds.
+        /// </summary>
         public PresentationSystemGroup presentationSystemGroup => m_presentationSystemGroup;
 
+        /// <summary>
+        /// Specifies the default system ordering behavior for any newly created SuperSystems.
+        /// If true, automatic system ordering will by default be disabled for those SuperSystems.
+        /// </summary>
         public bool useExplicitSystemOrdering = false;
 
         internal ManagedStructComponentStorage ManagedStructStorage { get { return m_componentStorage; } }
@@ -77,6 +102,12 @@ namespace Latios
             Server
         }
 
+        /// <summary>
+        /// Creates a LatiosWorld
+        /// </summary>
+        /// <param name="name">The name of the world</param>
+        /// <param name="flags">Specifies world flags</param>
+        /// <param name="role">The role of the world. Leave at default unless this is a NetCode project.</param>
         public LatiosWorld(string name, WorldFlags flags = WorldFlags.Simulation, WorldRole role = WorldRole.Default) : base(name, flags)
         {
             Authoring.ConversionBootstrapUtilities.RegisterConversionWorldAction();
@@ -121,6 +152,11 @@ namespace Latios
             m_syncPointPlaybackSystem = GetExistingSystem<SyncPointPlaybackSystem>();
         }
 
+        /// <summary>
+        /// When the Scene Manager is not installed, call this function to destroy the old sceneBlackboardEntity,
+        /// create a new one, and call the OnNewScene() method for all systems which have it.
+        /// </summary>
+        /// <returns></returns>
         public BlackboardEntity ForceCreateNewSceneBlackboardEntityAndCallOnNewScene()
         {
             CreateNewSceneBlackboardEntity(true);
@@ -335,6 +371,9 @@ namespace Latios
 
 namespace Systems
 {
+    /// <summary>
+    /// The SimulationSystemGroup for a LatiosWorld created with WorldRole.Default
+    /// </summary>
     [DisableAutoCreation, NoGroupInjection]
     public class LatiosSimulationSystemGroup : SimulationSystemGroup
     {
@@ -348,6 +387,9 @@ namespace Systems
         }
     }
 
+    /// <summary>
+    /// The PresentationSystemGroup for a LatiosWorld created with WorldRole.Default
+    /// </summary>
     [DisableAutoCreation, NoGroupInjection]
     public class LatiosPresentationSystemGroup : PresentationSystemGroup
     {
